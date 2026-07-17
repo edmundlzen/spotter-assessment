@@ -1,3 +1,4 @@
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["trips/tests"]
+DJANGO_SETTINGS_MODULE = "config.settings"

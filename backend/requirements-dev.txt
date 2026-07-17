@@ -1,1 +1,2 @@
 pytest>=9.0,<10
+pytest-django==4.12.0
