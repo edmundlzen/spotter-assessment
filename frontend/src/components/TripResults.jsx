@@ -1,3 +1,27 @@
+import AddRoadOutlined from "@mui/icons-material/AddRoadOutlined"
+import CalendarMonthOutlined from "@mui/icons-material/CalendarMonthOutlined"
+import ContentCopyOutlined from "@mui/icons-material/ContentCopyOutlined"
+import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined"
+import StraightenOutlined from "@mui/icons-material/StraightenOutlined"
+import WorkHistoryOutlined from "@mui/icons-material/WorkHistoryOutlined"
+import {
+  Alert,
+  Avatar,
+  Box,
+  Button,
+  Chip,
+  Container,
+  Divider,
+  LinearProgress,
+  List,
+  ListItem,
+  ListItemAvatar,
+  ListItemText,
+  Paper,
+  Stack,
+  Typography,
+} from "@mui/material"
+
 import EldLogSheets from "./EldLogSheet.jsx"
 import TripMap from "./TripMap.jsx"
 import {
@@ -10,20 +34,6 @@ import {
   stopLabel,
 } from "../utils/trip.js"
 
-function SummaryIcon({ type }) {
-  const paths = {
-    distance: "M4 17h16M6 17l3-10 3 6 3-9 3 13",
-    clock: "M12 7v5l3 2M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Z",
-    calendar: "M6 3v3m12-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z",
-    duty: "M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 9a7 7 0 0 1 14 0",
-  }
-  return (
-    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
-      <path d={paths[type]} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" />
-    </svg>
-  )
-}
-
 function SummaryCards({ snapshot, balances }) {
   const start = Date.parse(`${snapshot.duty_segments[0].start}Z`)
   const end = Date.parse(`${snapshot.duty_segments.at(-1).end}Z`)
@@ -33,89 +43,132 @@ function SummaryCards({ snapshot, balances }) {
       label: "Route distance",
       value: `${formatMiles(snapshot.summary.total_distance_miles, 0)} mi`,
       detail: `${snapshot.summary.leg_count} route legs`,
-      icon: "distance",
+      icon: StraightenOutlined,
     },
     {
       label: "Estimated drive time",
       value: formatDuration(snapshot.summary.total_duration_minutes),
-      detail: "Provider road estimate",
-      icon: "clock",
+      detail: "Road estimate",
+      icon: ScheduleOutlined,
     },
     {
       label: "Trip duration",
       value: formatDuration(tripElapsed),
       detail: `${snapshot.summary.log_day_count} daily logs`,
-      icon: "calendar",
+      icon: CalendarMonthOutlined,
     },
     {
-      label: "Total on-duty time",
+      label: "On-duty time",
       value: formatDuration(balances.totalOnDutyMinutes),
       detail: `${formatDuration(balances.totalDrivingMinutes)} driving`,
-      icon: "duty",
+      icon: WorkHistoryOutlined,
     },
   ]
 
   return (
-    <div className="summary-grid" aria-label="Trip summary">
-      {items.map((item) => (
-        <article className="summary-card" key={item.label}>
-          <span className="summary-card__icon">
-            <SummaryIcon type={item.icon} />
-          </span>
-          <div>
-            <p>{item.label}</p>
-            <strong>{item.value}</strong>
-            <small>{item.detail}</small>
-          </div>
-        </article>
-      ))}
-    </div>
+    <Box
+      aria-label="Trip summary"
+      className="summary-cards"
+      sx={{
+        display: "grid",
+        gap: 2,
+        gridTemplateColumns: {
+          xs: "1fr",
+          sm: "repeat(2, minmax(0, 1fr))",
+          lg: "repeat(4, minmax(0, 1fr))",
+        },
+      }}
+    >
+      {items.map((item) => {
+        const Icon = item.icon
+        return (
+          <Paper component="article" elevation={1} key={item.label} sx={{ p: 2 }}>
+            <Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
+              <Avatar
+                sx={{
+                  bgcolor: "primary.main",
+                  height: 38,
+                  width: 38,
+                }}
+                variant="rounded"
+              >
+                <Icon fontSize="small" />
+              </Avatar>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography color="text.secondary" variant="caption">
+                  {item.label}
+                </Typography>
+                <Typography component="p" fontWeight={700} noWrap variant="h6">
+                  {item.value}
+                </Typography>
+                <Typography color="text.secondary" variant="caption">
+                  {item.detail}
+                </Typography>
+              </Box>
+            </Stack>
+          </Paper>
+        )
+      })}
+    </Box>
   )
 }
 
 function HosBalances({ balances }) {
   return (
-    <section className="content-card hos-card" aria-labelledby="hos-title">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Hours of Service</p>
-          <h2 id="hos-title">Available after this trip</h2>
-        </div>
-        <span className="compliance-badge">
-          <i />
-          70-hour / 8-day rules
-        </span>
-      </div>
-      <div className="hos-grid">
+    <Paper
+      aria-labelledby="hos-title"
+      component="section"
+      elevation={1}
+      sx={{ p: 2.5 }}
+    >
+      <Stack
+        direction="row"
+        sx={{ alignItems: "center", justifyContent: "space-between", mb: 2.5 }}
+      >
+        <Typography component="h2" id="hos-title" variant="h6">
+          Hours of service
+        </Typography>
+        <Chip label="70 / 8" size="small" variant="outlined" />
+      </Stack>
+
+      <Stack spacing={2.5}>
         {["driving", "window", "cycle"].map((key) => {
           const item = balances[key]
           const usedPercent = Math.min(100, (item.used / item.limit) * 100)
           return (
-            <div className="hos-meter" key={key}>
-              <div className="hos-meter__copy">
-                <span>{item.label}</span>
-                <strong>{formatDuration(item.remaining, { compact: true })}</strong>
-              </div>
-              <div
-                aria-label={`${item.label}: ${formatDuration(item.remaining)} remaining`}
-                aria-valuemax={item.limit}
-                aria-valuemin="0"
-                aria-valuenow={item.used}
-                className="hos-meter__track"
-                role="progressbar"
+            <Box key={key}>
+              <Stack
+                direction="row"
+                spacing={2}
+                sx={{ justifyContent: "space-between" }}
               >
-                <span style={{ width: `${usedPercent}%` }} />
-              </div>
-              <small>{formatDuration(item.used)} used</small>
-            </div>
+                <Typography fontWeight={600} variant="body2">
+                  {item.label}
+                </Typography>
+                <Typography fontWeight={700} variant="body2">
+                  {formatDuration(item.remaining, { compact: true })}
+                </Typography>
+              </Stack>
+              <LinearProgress
+                aria-label={`${item.label}: ${formatDuration(item.remaining)} remaining`}
+                sx={{ borderRadius: 4, height: 7, my: 0.75 }}
+                value={usedPercent}
+                variant="determinate"
+              />
+              <Typography color="text.secondary" variant="caption">
+                {formatDuration(item.used)} used
+              </Typography>
+            </Box>
           )
         })}
-      </div>
-      <p className="hos-note">
-        Balances reflect the final duty period in this plan. Qualifying 10-hour
-        resets and 34-hour restarts are applied automatically.
-      </p>
-    </section>
+      </Stack>
+
+      <Divider sx={{ my: 2 }} />
+      <Typography color="text.secondary" variant="caption">
+        Final balances after applying qualifying resets and restarts in this
+        plan.
+      </Typography>
+    </Paper>
   )
 }
 
@@ -125,97 +178,192 @@ function ScheduleTimeline({ snapshot }) {
   )
 
   return (
-    <section className="content-card timeline-card" aria-labelledby="timeline-title">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Duty schedule</p>
-          <h2 id="timeline-title">Trip timeline</h2>
-          <p>{snapshot.duty_segments.length} chronological duty changes</p>
-        </div>
-      </div>
+    <Paper
+      aria-labelledby="timeline-title"
+      component="section"
+      elevation={1}
+      sx={{ p: 2.5 }}
+    >
+      <Typography component="h2" id="timeline-title" variant="h6">
+        Duty schedule
+      </Typography>
+      <Typography color="text.secondary" variant="body2">
+        {snapshot.duty_segments.length} duty-status segments
+      </Typography>
 
-      <div className="status-legend" aria-label="Duty status legend">
+      <Stack
+        aria-label="Duty status legend"
+        direction="row"
+        sx={{ flexWrap: "wrap", gap: 1, my: 2 }}
+      >
         {Object.entries(STATUS_META).map(([status, meta]) => (
-          <span key={status}>
-            <i style={{ background: meta.color }} />
-            {meta.label}
-          </span>
+          <Chip
+            icon={
+              <Box
+                component="span"
+                sx={{
+                  bgcolor: meta.color,
+                  borderRadius: "50%",
+                  height: 8,
+                  width: 8,
+                }}
+              />
+            }
+            key={status}
+            label={meta.label}
+            size="small"
+            variant="outlined"
+          />
         ))}
-      </div>
+      </Stack>
 
-      <ol className="timeline">
+      <List
+        aria-label="Trip duty schedule"
+        disablePadding
+        sx={{ maxHeight: { md: 720 }, overflowY: { md: "auto" } }}
+      >
         {snapshot.duty_segments.map((segment, index) => {
           const stop = stopsByStart.get(segment.start)
           const meta = STATUS_META[segment.status]
+          const title = stop ? stopLabel(stop.kind) : meta.label
+          const details = [
+            `${formatClock(segment.start)}–${formatClock(segment.end)}`,
+            formatDuration(segment.duration_minutes),
+            stop ? `mile ${formatMiles(stop.cumulative_miles, 0)}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")
+
           return (
-            <li key={`${segment.start}-${segment.status}-${index}`}>
-              <span
-                className="timeline__dot"
-                style={{ background: meta.color, boxShadow: `0 0 0 4px ${meta.soft}` }}
+            <ListItem
+              alignItems="flex-start"
+              divider={index < snapshot.duty_segments.length - 1}
+              key={`${segment.start}-${segment.status}-${index}`}
+              sx={{ px: 0, py: 1.5 }}
+            >
+              <ListItemAvatar sx={{ minWidth: 34, mt: 0.5 }}>
+                <Box
+                  sx={{
+                    bgcolor: meta.color,
+                    border: "3px solid",
+                    borderColor: meta.soft,
+                    borderRadius: "50%",
+                    height: 14,
+                    width: 14,
+                  }}
+                />
+              </ListItemAvatar>
+              <ListItemText
+                primary={
+                  <Stack
+                    direction="row"
+                    spacing={1}
+                    sx={{
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <Typography fontWeight={650} variant="body2">
+                      {title}
+                    </Typography>
+                    <Typography color="text.secondary" variant="caption">
+                      {formatDate(segment.start, { short: true })}
+                    </Typography>
+                  </Stack>
+                }
+                secondary={
+                  <>
+                    <Typography
+                      color="text.secondary"
+                      component="span"
+                      display="block"
+                      variant="caption"
+                    >
+                      {details}
+                    </Typography>
+                    {(stop?.note || segment.note) && (
+                      <Typography
+                        color="text.secondary"
+                        component="span"
+                        display="block"
+                        sx={{ mt: 0.25 }}
+                        variant="caption"
+                      >
+                        {stop?.note || segment.note}
+                      </Typography>
+                    )}
+                  </>
+                }
               />
-              <div className="timeline__time">
-                <strong>{formatClock(segment.start)}</strong>
-                <span>{formatDate(segment.start, { short: true })}</span>
-              </div>
-              <div className="timeline__event">
-                <div>
-                  <strong>{stop ? stopLabel(stop.kind) : meta.label}</strong>
-                  <span className="status-pill" style={{ color: meta.color, background: meta.soft }}>
-                    {meta.label}
-                  </span>
-                </div>
-                <p>
-                  {formatClock(segment.start)}–{formatClock(segment.end)} ·{" "}
-                  {formatDuration(segment.duration_minutes)}
-                  {stop
-                    ? ` · mile ${formatMiles(stop.cumulative_miles, 0)}`
-                    : ""}
-                </p>
-                {(stop?.note || segment.note) && (
-                  <small>{stop?.note || segment.note}</small>
-                )}
-              </div>
-            </li>
+            </ListItem>
           )
         })}
-      </ol>
-    </section>
+      </List>
+    </Paper>
   )
 }
 
 function RouteHeader({ onNewTrip, onShare, shareStatus, snapshot }) {
   return (
-    <section className="result-hero">
-      <div>
-        <div className="result-hero__status">
-          <span>Route ready</span>
-          <small>Saved trip</small>
-        </div>
-        <p className="eyebrow">Trip plan</p>
-        <h1>
-          {snapshot.locations.current.label}
-          <span aria-hidden="true"> → </span>
-          {snapshot.locations.dropoff.label}
-        </h1>
-        <p className="result-hero__via">
-          Pickup in {snapshot.locations.pickup.label} · Departing{" "}
-          {formatDate(snapshot.trip.departure_local)} at{" "}
-          {formatClock(snapshot.trip.departure_local)}
-        </p>
-      </div>
-      <div className="result-actions">
-        <button className="outlined-button" onClick={onNewTrip} type="button">
-          Plan another trip
-        </button>
-        <button className="primary-button" onClick={onShare} type="button">
-          {shareStatus === "copied" ? "Link copied" : "Share trip"}
-        </button>
-      </div>
-      <div className="record-reference">
-        <span>Shareable record</span>
-        <code>{snapshot.trip.id}</code>
-      </div>
-    </section>
+    <Paper
+      className="route-header"
+      component="section"
+      elevation={1}
+      sx={{ p: { xs: 2.5, sm: 3 } }}
+    >
+      <Stack
+        direction={{ xs: "column", md: "row" }}
+        spacing={2}
+        sx={{
+          alignItems: { xs: "flex-start", md: "center" },
+          justifyContent: "space-between",
+        }}
+      >
+        <Box sx={{ minWidth: 0 }}>
+          <Typography color="text.secondary" variant="overline">
+            Trip plan
+          </Typography>
+          <Typography component="h1" variant="h4">
+            {snapshot.locations.current.label}
+            <Box component="span" sx={{ color: "text.secondary", mx: 1 }}>
+              →
+            </Box>
+            {snapshot.locations.dropoff.label}
+          </Typography>
+          <Typography color="text.secondary" sx={{ mt: 0.75 }}>
+            Pickup: {snapshot.locations.pickup.label} · Departure:{" "}
+            {formatDate(snapshot.trip.departure_local)} at{" "}
+            {formatClock(snapshot.trip.departure_local)}
+          </Typography>
+        </Box>
+        <Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
+          <Button
+            onClick={onNewTrip}
+            startIcon={<AddRoadOutlined />}
+            variant="outlined"
+          >
+            Plan another trip
+          </Button>
+          <Button
+            onClick={onShare}
+            startIcon={<ContentCopyOutlined />}
+            variant="contained"
+          >
+            {shareStatus === "copied" ? "Link copied" : "Copy trip link"}
+          </Button>
+        </Stack>
+      </Stack>
+      <Divider sx={{ my: 2 }} />
+      <Typography color="text.secondary" variant="caption">
+        Record ID{" "}
+        <Box
+          component="code"
+          sx={{ color: "text.primary", fontFamily: "monospace", ml: 0.5 }}
+        >
+          {snapshot.trip.id}
+        </Box>
+      </Typography>
+    </Paper>
   )
 }
 
@@ -228,33 +376,55 @@ export default function TripResults({
   const balances = calculateHosBalances(snapshot)
 
   return (
-    <main className="results-page">
-      <RouteHeader
-        onNewTrip={onNewTrip}
-        onShare={onShare}
-        shareStatus={shareStatus}
-        snapshot={snapshot}
-      />
-      <SummaryCards balances={balances} snapshot={snapshot} />
-      <div className="results-grid">
-        <div className="results-grid__main">
-          <TripMap snapshot={snapshot} />
-          <EldLogSheets snapshot={snapshot} />
-        </div>
-        <aside className="results-grid__aside">
-          <HosBalances balances={balances} />
-          <ScheduleTimeline snapshot={snapshot} />
-          <section className="assumptions-card">
-            <strong>Planning assumptions</strong>
-            <p>
-              Property-carrying driver · 70-hour/8-day cycle · 1-hour pickup
-              and drop-off · fuel at least every 1,000 miles · no split sleeper
-              berth or adverse-condition extension.
-            </p>
-          </section>
-        </aside>
-      </div>
-    </main>
+    <Container
+      className="results-page"
+      component="main"
+      maxWidth="xl"
+      sx={{ py: { xs: 2, sm: 3 } }}
+    >
+      <Stack spacing={2.5}>
+        <RouteHeader
+          onNewTrip={onNewTrip}
+          onShare={onShare}
+          shareStatus={shareStatus}
+          snapshot={snapshot}
+        />
+        <SummaryCards balances={balances} snapshot={snapshot} />
+        <Box
+          sx={{
+            display: "grid",
+            gap: 2.5,
+            gridTemplateColumns: {
+              xs: "minmax(0, 1fr)",
+              md: "minmax(0, 2fr) minmax(320px, 0.85fr)",
+            },
+          }}
+        >
+          <Stack className="results-main" spacing={2.5} sx={{ minWidth: 0 }}>
+            <TripMap snapshot={snapshot} />
+            <EldLogSheets snapshot={snapshot} />
+          </Stack>
+          <Stack
+            component="aside"
+            className="results-aside"
+            spacing={2.5}
+            sx={{ minWidth: 0 }}
+          >
+            <HosBalances balances={balances} />
+            <ScheduleTimeline snapshot={snapshot} />
+            <Alert severity="info">
+              <Typography fontWeight={700} variant="body2">
+                Planning assumptions
+              </Typography>
+              <Typography variant="body2">
+                Property-carrying driver; 70-hour/8-day cycle; one hour each
+                for pickup and drop-off; fuel at least every 1,000 miles; no
+                split sleeper berth or adverse-condition extension.
+              </Typography>
+            </Alert>
+          </Stack>
+        </Box>
+      </Stack>
+    </Container>
   )
 }
-

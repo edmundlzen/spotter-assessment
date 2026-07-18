@@ -1,4 +1,14 @@
 import { useState } from "react"
+import PrintOutlined from "@mui/icons-material/PrintOutlined"
+import {
+  Box,
+  Button,
+  Paper,
+  Stack,
+  Tab,
+  Tabs,
+  Typography,
+} from "@mui/material"
 
 import {
   STATUS_META,
@@ -183,7 +193,7 @@ function LogSheet({ day, snapshot }) {
   const uniqueRemarks = [...new Set(remarks)]
 
   return (
-    <article className="eld-sheet">
+    <Box className="eld-sheet" component="article">
       <div className="eld-sheet__masthead">
         <div>
           <p className="eld-sheet__form-label">DRIVER’S DAILY LOG</p>
@@ -237,7 +247,7 @@ function LogSheet({ day, snapshot }) {
             : "No scheduled stops or additional remarks."}
         </p>
       </div>
-    </article>
+    </Box>
   )
 }
 
@@ -245,39 +255,62 @@ export default function EldLogSheets({ snapshot }) {
   const [activeDay, setActiveDay] = useState(0)
 
   return (
-    <section className="content-card logs-card" aria-labelledby="logs-title">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Electronic logbook</p>
-          <h2 id="logs-title">Daily driver logs</h2>
-          <p>
-            One complete 24-hour duty record for each calendar day of the trip.
-          </p>
-        </div>
-        <button className="outlined-button print-button" onClick={() => window.print()}>
+    <Paper
+      aria-labelledby="logs-title"
+      className="logs-card"
+      component="section"
+      elevation={1}
+      sx={{ p: { xs: 2, sm: 2.5 } }}
+    >
+      <Stack
+        direction={{ xs: "column", sm: "row" }}
+        spacing={1.5}
+        sx={{
+          alignItems: { xs: "flex-start", sm: "center" },
+          justifyContent: "space-between",
+          mb: 2,
+        }}
+      >
+        <Box>
+          <Typography component="h2" id="logs-title" variant="h6">
+            Daily driver logs
+          </Typography>
+          <Typography color="text.secondary" variant="body2">
+            One 24-hour duty record per calendar day.
+          </Typography>
+        </Box>
+        <Button
+          className="print-button"
+          onClick={() => window.print()}
+          startIcon={<PrintOutlined />}
+          variant="outlined"
+        >
           Print all logs
-        </button>
-      </div>
+        </Button>
+      </Stack>
 
-      <div className="day-tabs" role="tablist" aria-label="Daily logs">
+      <Tabs
+        allowScrollButtonsMobile
+        aria-label="Daily logs"
+        onChange={(_, value) => setActiveDay(value)}
+        scrollButtons="auto"
+        sx={{ borderBottom: 1, borderColor: "divider", mb: 2 }}
+        value={activeDay}
+        variant="scrollable"
+      >
         {snapshot.log_days.map((day, index) => (
-          <button
-            aria-selected={activeDay === index}
-            className={activeDay === index ? "day-tab day-tab--active" : "day-tab"}
+          <Tab
+            id={`log-tab-${index}`}
             key={day.date}
-            onClick={() => setActiveDay(index)}
-            role="tab"
-            type="button"
-          >
-            <span>Day {index + 1}</span>
-            <small>{formatDate(day.date, { short: true })}</small>
-          </button>
+            label={`Day ${index + 1} · ${formatDate(day.date, { short: true })}`}
+          />
         ))}
-      </div>
+      </Tabs>
 
       <div className="eld-days">
         {snapshot.log_days.map((day, index) => (
           <div
+            aria-labelledby={`log-tab-${index}`}
             aria-hidden={activeDay !== index}
             className={
               activeDay === index
@@ -291,6 +324,6 @@ export default function EldLogSheets({ snapshot }) {
           </div>
         ))}
       </div>
-    </section>
+    </Paper>
   )
 }

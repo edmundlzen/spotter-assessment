@@ -2,7 +2,7 @@ export const STATUS_META = {
   off_duty: {
     label: "Off duty",
     shortLabel: "OFF",
-    color: "#5f6368",
+    color: "#616161",
     soft: "#eef0f1",
   },
   sleeper_berth: {
@@ -14,13 +14,13 @@ export const STATUS_META = {
   driving: {
     label: "Driving",
     shortLabel: "D",
-    color: "#0b57d0",
+    color: "#1976d2",
     soft: "#e8f0fe",
   },
   on_duty_not_driving: {
     label: "On duty (not driving)",
     shortLabel: "ON",
-    color: "#e37400",
+    color: "#ed6c02",
     soft: "#fff1df",
   },
 }
@@ -191,4 +191,3 @@ export function calculateHosBalances(snapshot) {
 export function stopsForDate(stops, date) {
   return stops.filter((stop) => stop.start.slice(0, 10) === date)
 }
-

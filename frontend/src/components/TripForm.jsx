@@ -1,4 +1,22 @@
 import { useState } from "react"
+import AltRouteOutlined from "@mui/icons-material/AltRouteOutlined"
+import FlagOutlined from "@mui/icons-material/FlagOutlined"
+import Inventory2Outlined from "@mui/icons-material/Inventory2Outlined"
+import LocationOnOutlined from "@mui/icons-material/LocationOnOutlined"
+import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined"
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  CardHeader,
+  CircularProgress,
+  InputAdornment,
+  Stack,
+  TextField,
+  Typography,
+} from "@mui/material"
 
 const SAMPLE = {
   current_location: "New York, NY",
@@ -18,20 +36,20 @@ const FIELDS = [
   {
     name: "current_location",
     label: "Current location",
-    placeholder: "City, state or street address",
-    marker: "A",
+    placeholder: "City, state, or street address",
+    icon: LocationOnOutlined,
   },
   {
     name: "pickup_location",
     label: "Pickup location",
-    placeholder: "Where are you collecting the load?",
-    marker: "B",
+    placeholder: "City, state, or street address",
+    icon: Inventory2Outlined,
   },
   {
     name: "dropoff_location",
     label: "Drop-off location",
-    placeholder: "Final delivery location",
-    marker: "C",
+    placeholder: "City, state, or street address",
+    icon: FlagOutlined,
   },
 ]
 
@@ -95,105 +113,142 @@ export default function TripForm({
   }
 
   return (
-    <section className="planner-card" aria-labelledby="planner-title">
-      <div className="planner-card__header">
-        <div>
-          <p className="eyebrow">Plan an HOS-aware trip</p>
-          <h1 id="planner-title">Where are you headed?</h1>
-          <p>
-            Enter your route and current 70-hour cycle usage. We’ll calculate
-            required breaks, stops, and daily driver logs.
-          </p>
-        </div>
-        <button
-          className="text-button"
-          disabled={busy}
-          onClick={() => {
-            setValues(SAMPLE)
-            setLocalErrors({})
-          }}
-          type="button"
-        >
-          Use sample trip
-        </button>
-      </div>
+    <Card
+      aria-labelledby="planner-title"
+      component="section"
+      elevation={3}
+    >
+      <CardHeader
+        action={
+          <Button
+            disabled={busy}
+            onClick={() => {
+              setValues(SAMPLE)
+              setLocalErrors({})
+            }}
+            size="small"
+            sx={{ whiteSpace: "nowrap" }}
+            type="button"
+          >
+            Use sample trip
+          </Button>
+        }
+        subheader={
+          <Typography color="text.secondary">
+            Enter the route and hours already used in the current 70-hour
+            cycle.
+          </Typography>
+        }
+        sx={{
+          alignItems: { xs: "stretch", sm: "flex-start" },
+          flexDirection: { xs: "column", sm: "row" },
+          px: { xs: 2.5, sm: 4 },
+          pb: 1,
+          pt: { xs: 2.5, sm: 3.5 },
+          "& .MuiCardHeader-action": {
+            alignSelf: { xs: "flex-start", sm: "center" },
+            ml: { xs: 0, sm: 2 },
+            mt: { xs: 1, sm: 0 },
+          },
+          "& .MuiCardHeader-content": { width: "100%" },
+        }}
+        title={
+          <Typography component="h1" id="planner-title" variant="h4">
+            Plan a trip
+          </Typography>
+        }
+      />
 
-      <form className="trip-form" noValidate onSubmit={submit}>
-        <div className="route-fields">
-          <span aria-hidden="true" className="route-fields__line" />
-          {FIELDS.map((field) => (
-            <label className="field" key={field.name}>
-              <span className="field__marker" aria-hidden="true">
-                {field.marker}
-              </span>
-              <span className="field__content">
-                <span className="field__label">{field.label}</span>
-                <input
-                  aria-invalid={Boolean(errors[field.name])}
+      <CardContent sx={{ px: { xs: 2.5, sm: 4 }, pb: { xs: 3, sm: 4 } }}>
+        <Box component="form" noValidate onSubmit={submit}>
+          <Stack spacing={2.5}>
+            {FIELDS.map((field) => {
+              const Icon = field.icon
+              return (
+                <TextField
                   disabled={busy}
-                  maxLength={201}
+                  error={Boolean(errors[field.name])}
+                  helperText={errors[field.name] ?? " "}
+                  key={field.name}
+                  label={field.label}
                   name={field.name}
                   onChange={(event) => update(field.name, event.target.value)}
                   placeholder={field.placeholder}
-                  type="text"
+                  slotProps={{
+                    htmlInput: { maxLength: 201 },
+                    input: {
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <Icon color="action" fontSize="small" />
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
                   value={values[field.name]}
                 />
-                {errors[field.name] && (
-                  <span className="field__error" role="alert">
-                    {errors[field.name]}
-                  </span>
-                )}
-              </span>
-            </label>
-          ))}
-        </div>
+              )
+            })}
 
-        <label className="field field--cycle">
-          <span className="cycle-icon" aria-hidden="true">
-            70
-          </span>
-          <span className="field__content">
-            <span className="field__label">Current cycle hours used</span>
-            <span className="cycle-input">
-              <input
-                aria-invalid={Boolean(errors.cycle_hours_used)}
-                disabled={busy}
-                inputMode="decimal"
-                max="70"
-                min="0"
-                name="cycle_hours_used"
-                onChange={(event) =>
-                  update("cycle_hours_used", event.target.value)
-                }
-                step="0.5"
-                type="number"
-                value={values.cycle_hours_used}
-              />
-              <span>of 70 hours</span>
-            </span>
-            {errors.cycle_hours_used && (
-              <span className="field__error" role="alert">
-                {errors.cycle_hours_used}
-              </span>
+            <TextField
+              disabled={busy}
+              error={Boolean(errors.cycle_hours_used)}
+              helperText={
+                errors.cycle_hours_used ??
+                "Enter a value between 0 and 70 hours."
+              }
+              label="Current cycle hours used"
+              name="cycle_hours_used"
+              onChange={(event) =>
+                update("cycle_hours_used", event.target.value)
+              }
+              slotProps={{
+                htmlInput: {
+                  inputMode: "decimal",
+                  max: 70,
+                  min: 0,
+                  step: 0.5,
+                },
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">of 70 hours</InputAdornment>
+                  ),
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <ScheduleOutlined color="action" fontSize="small" />
+                    </InputAdornment>
+                  ),
+                },
+              }}
+              type="number"
+              value={values.cycle_hours_used}
+            />
+
+            {error && (
+              <Alert severity="error">
+                <Typography fontWeight={700}>Couldn’t plan this trip</Typography>
+                {error}
+              </Alert>
             )}
-          </span>
-        </label>
 
-        {error && (
-          <div className="form-alert" role="alert">
-            <span aria-hidden="true">!</span>
-            <div>
-              <strong>We couldn’t plan this trip</strong>
-              <p>{error}</p>
-            </div>
-          </div>
-        )}
-
-        <button className="primary-button primary-button--wide" disabled={busy}>
-          {busy && <span className="button-spinner" aria-hidden="true" />}
-          {busy ? loadingMessage : "Plan my trip"}
-        </button>
-      </form>
-    </section>
+            <Button
+              disabled={busy}
+              fullWidth
+              size="large"
+              startIcon={
+                busy ? (
+                  <CircularProgress color="inherit" size={18} />
+                ) : (
+                  <AltRouteOutlined />
+                )
+              }
+              type="submit"
+              variant="contained"
+            >
+              {busy ? loadingMessage : "Plan my trip"}
+            </Button>
+          </Stack>
+        </Box>
+      </CardContent>
+    </Card>
   )
 }

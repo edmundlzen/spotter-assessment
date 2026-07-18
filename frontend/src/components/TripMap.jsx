@@ -1,4 +1,7 @@
 import { useEffect, useMemo } from "react"
+import LocalShippingOutlined from "@mui/icons-material/LocalShippingOutlined"
+import MapOutlined from "@mui/icons-material/MapOutlined"
+import { Box, Chip, Paper, Stack, Typography } from "@mui/material"
 import L from "leaflet"
 import {
   MapContainer,
@@ -9,7 +12,12 @@ import {
   useMap,
 } from "react-leaflet"
 
-import { formatClock, formatMiles, routePositions, stopLabel } from "../utils/trip.js"
+import {
+  formatClock,
+  formatMiles,
+  routePositions,
+  stopLabel,
+} from "../utils/trip.js"
 
 function FitRoute({ positions }) {
   const map = useMap()
@@ -51,21 +59,44 @@ const STOP_SYMBOLS = {
   dropoff: "D",
 }
 
+const LEGEND_ITEMS = [
+  ["pickup", "Pickup"],
+  ["dropoff", "Drop-off"],
+  ["fuel", "Fuel"],
+  ["rest", "Rest"],
+]
+
 export default function TripMap({ snapshot }) {
   const positions = useMemo(() => routePositions(snapshot), [snapshot])
   const center = positions[Math.floor(positions.length / 2)] ?? [39, -96]
 
   return (
-    <section className="content-card map-card" aria-labelledby="route-map-title">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Route overview</p>
-          <h2 id="route-map-title">Your planned route</h2>
-        </div>
-        <span className="section-chip">Heavy goods vehicle</span>
-      </div>
+    <Paper
+      aria-labelledby="route-map-title"
+      className="map-card"
+      component="section"
+      elevation={1}
+      sx={{ p: { xs: 2, sm: 2.5 } }}
+    >
+      <Stack
+        direction="row"
+        sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}
+      >
+        <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
+          <MapOutlined color="action" />
+          <Typography component="h2" id="route-map-title" variant="h6">
+            Route map
+          </Typography>
+        </Stack>
+        <Chip
+          icon={<LocalShippingOutlined />}
+          label="HGV route"
+          size="small"
+          variant="outlined"
+        />
+      </Stack>
 
-      <div className="map-frame">
+      <Box className="map-frame">
         <MapContainer
           center={center}
           className="trip-map"
@@ -77,7 +108,7 @@ export default function TripMap({ snapshot }) {
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
           <Polyline
-            pathOptions={{ color: "#0b57d0", opacity: 0.92, weight: 5 }}
+            pathOptions={{ color: "#1976d2", opacity: 0.92, weight: 5 }}
             positions={positions}
             smoothFactor={2}
           />
@@ -130,21 +161,15 @@ export default function TripMap({ snapshot }) {
             ))}
         </MapContainer>
 
-        <div className="map-legend" aria-label="Map marker legend">
-          <span>
-            <i className="legend-dot legend-dot--pickup" /> Pickup
-          </span>
-          <span>
-            <i className="legend-dot legend-dot--dropoff" /> Drop-off
-          </span>
-          <span>
-            <i className="legend-dot legend-dot--fuel" /> Fuel
-          </span>
-          <span>
-            <i className="legend-dot legend-dot--rest" /> Rest
-          </span>
-        </div>
-      </div>
-    </section>
+        <Box className="map-legend" aria-label="Map marker legend">
+          {LEGEND_ITEMS.map(([tone, label]) => (
+            <Typography component="span" key={tone} variant="caption">
+              <i className={`legend-dot legend-dot--${tone}`} />
+              {label}
+            </Typography>
+          ))}
+        </Box>
+      </Box>
+    </Paper>
   )
 }

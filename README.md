@@ -4,7 +4,8 @@ Spotter ELD Trip Planner is a Django and React application for planning
 property-carrying trips and producing Hours-of-Service-aware schedules and
 daily logs. Enter a current location, pickup, drop-off, and current 70-hour
 cycle usage to receive an HGV route, required fuel/rest stops, a duty timeline,
-and printable daily ELD-style log grids.
+and printable daily ELD-style log grids. The frontend uses Material UI for the
+application shell, form, result cards, controls, and responsive layout.
 
 ## Prerequisites
 

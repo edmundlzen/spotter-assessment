@@ -233,7 +233,7 @@ describe("trip planner", () => {
     render(<App />)
 
     expect(
-      screen.getByRole("heading", { name: "Where are you headed?" }),
+      screen.getByRole("heading", { name: "Plan a trip" }),
     ).toBeTruthy()
     expect(screen.getByRole("textbox", { name: "Current location" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Plan my trip" })).toBeTruthy()
@@ -262,7 +262,7 @@ describe("trip planner", () => {
     fireEvent.click(screen.getByRole("button", { name: "Plan my trip" }))
 
     expect(
-      screen.getByRole("heading", { name: "Planning your trip…" }),
+      screen.getByRole("heading", { name: "Planning trip…" }),
     ).toBeTruthy()
     expect(
       await screen.findByRole("heading", { name: "Trip results" }),

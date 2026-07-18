@@ -10,18 +10,21 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@emotion/react": "11.14.0",
+    "@emotion/styled": "11.14.1",
+    "@fontsource/roboto": "5.2.10",
+    "@mui/icons-material": "9.2.0",
+    "@mui/material": "9.2.0",
     "leaflet": "1.9.4",
     "react": "19.2.7",
     "react-dom": "19.2.7",
     "react-leaflet": "5.0.0"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "4.3.3",
     "@testing-library/dom": "10.4.1",
     "@testing-library/react": "16.3.2",
     "@vitejs/plugin-react": "6.0.3",
     "jsdom": "29.1.1",
-    "tailwindcss": "4.3.3",
     "vite": "8.1.5",
     "vitest": "4.1.10"
   }
