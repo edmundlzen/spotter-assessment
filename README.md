@@ -1,10 +1,10 @@
 # Spotter ELD Trip Planner
 
-Spotter ELD Trip Planner is being built as a Django and React application for
-planning property-carrying trips and producing Hours-of-Service-compliant
-schedules and daily logs. The current deployable shell is limited to proving
-that a Vercel-hosted React client can reach a Render-hosted Django API through
-an exact CORS allowlist.
+Spotter ELD Trip Planner is a Django and React application for planning
+property-carrying trips and producing Hours-of-Service-aware schedules and
+daily logs. Enter a current location, pickup, drop-off, and current 70-hour
+cycle usage to receive an HGV route, required fuel/rest stops, a duty timeline,
+and printable daily ELD-style log grids.
 
 ## Prerequisites
 
@@ -60,11 +60,11 @@ Copy `frontend/.env.example` to `frontend/.env`, set
 npm run dev
 ```
 
-Open the local URL printed by Vite. The page first shows
-`Connecting to backend...`, then `Backend connected`. If the request fails, it
-shows `Unable to connect to backend` and a `Retry` button. Run the frontend
-tests with `npm test -- --run` and create a production build with
-`npm run build`.
+Open the local URL printed by Vite. Use `Use sample trip` for the
+New York-to-Chicago-to-Dallas assessment route, or enter another trip. The
+first request can take longer while a free Render service wakes up. Completed
+trips receive a shareable `/trips/<uuid>` URL. Run the frontend tests with
+`npm test -- --run` and create a production build with `npm run build`.
 
 ## Environment variables
 
@@ -80,7 +80,7 @@ secret values.
 | `ALLOWED_HOSTS` | No | Comma-separated **bare hostnames** only, such as `localhost,127.0.0.1`; do not include a scheme or path. Render adds its exact hostname through `RENDER_EXTERNAL_HOSTNAME`. |
 | `RENDER_EXTERNAL_HOSTNAME` | Supplied by Render | Render's bare external hostname. Django adds it to `ALLOWED_HOSTS`; do not set this to a URL. |
 | `CORS_ALLOWED_ORIGINS` | Yes | Comma-separated **full origins**, including scheme and optional port, such as `http://localhost:5173`. Production must contain the exact Vercel origin and must not use a wildcard. |
-| `DATABASE_URL` | No | Optional database URL. When omitted, Django uses local SQLite; the health endpoint does not query a database. |
+| `DATABASE_URL` | Yes | Render Postgres connection string. The Blueprint resolves it from `spotter-eld-db`; local development falls back to SQLite when omitted. |
 
 ### Frontend
 
@@ -108,10 +108,12 @@ and Vercel's Vite support for the frontend.
 5. Deploy and wait for `/api/health/` to become healthy.
 6. Copy the provider-issued Render service origin, without the health path.
 
-The Blueprint installs `backend/requirements.txt`, collects static files,
-starts `gunicorn config.wsgi:application`, generates `SECRET_KEY`, forces
-`DEBUG=False`, and checks `/api/health/`. It deliberately does not provision a
-database or run migrations.
+The Blueprint installs `backend/requirements.txt`, runs migrations, collects
+static files, starts `gunicorn config.wsgi:application`, generates
+`SECRET_KEY`, forces `DEBUG=False`, checks `/api/health/`, and provisions the
+free `spotter-eld-db` Postgres database used for saved trips. Render free
+databases expire after their provider-defined trial period, so create a
+replacement or upgrade it before that date if the deployment must remain live.
 
 ### 2. Create the Vercel frontend
 
@@ -139,26 +141,26 @@ Status: **Captured against the live production services.**
 
 - Vercel production URL: https://spotter-assessment-alpha.vercel.app
 - Render health URL: https://spotter-eld-api-n2d3.onrender.com/api/health/
-- Browser result: `Backend connected`
-- Browser request status and payload: HTTP `200`, `{"status":"ok"}`
+- Browser result: planner form, generated route map, duty timeline, and daily
+  log sheets render successfully
+- Backend health status and payload: HTTP `200`, `{"status":"ok"}`
 - Browser `Access-Control-Allow-Origin`: `https://spotter-assessment-alpha.vercel.app`
 - Denied-Origin result: HTTP `200` with `{"status":"ok"}` and no
   `Access-Control-Allow-Origin` header
 
-After deployment, capture the proof in this order:
+After deployment, verify the app in this order:
 
-1. Open the provider-issued Vercel production URL. The page may show
-   `Connecting to backend...` for up to 75 seconds during a Render cold start.
-   Record whether it reaches `Backend connected`; if it reaches
-   `Unable to connect to backend`, inspect diagnostics and use `Retry`.
-2. In browser DevTools, open Network and select the request to the
-   provider-issued Render `/api/health/` URL. Confirm HTTP `200`, a response
-   body exactly equal to `{"status":"ok"}`, and
-   `Access-Control-Allow-Origin` exactly equal to the Vercel production
-   origin.
-3. If the page fails, inspect the Console. Diagnostics intentionally report
-   only the category: timeout, HTTP, payload, or network/CORS.
-4. From a terminal, replace the bracketed values below with the same
+1. Open the Vercel production URL, select `Use sample trip`, and submit. Allow
+   for a Render free-tier cold start on the first request.
+2. Confirm the result shows the resolved locations, route summary, route map,
+   HOS balances, chronological duty schedule, and one complete 24-hour log
+   grid per trip day.
+3. Copy the share URL, open it directly in a fresh tab, and confirm the same
+   saved snapshot loads without recalculating the route.
+4. In browser DevTools, confirm the trip `POST` returns HTTP `201`, the
+   following trip `GET` returns HTTP `200`, and the API responses include
+   `Access-Control-Allow-Origin` for the exact Vercel origin.
+5. From a terminal, replace the bracketed values below with the same
    provider-issued URLs and run the allowed-Origin request:
 
    ```sh
@@ -167,7 +169,7 @@ After deployment, capture the proof in this order:
 
    It must return HTTP `200`, exactly `{"status":"ok"}`, and one
    `Access-Control-Allow-Origin` header equal to the supplied Vercel origin.
-5. Run the denied-Origin comparison:
+6. Run the denied-Origin comparison:
 
    ```sh
    curl -i -H "Origin: https://untrusted.example" "<exact-render-health-url>"

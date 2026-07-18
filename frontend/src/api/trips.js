@@ -30,15 +30,17 @@ const LEG_ENDPOINTS = [
   ["pickup", "dropoff"],
 ]
 
-class TripApiError extends Error {
-  constructor(category) {
+export class TripApiError extends Error {
+  constructor(category, details = null, status = null) {
     super("Trip request failed")
     this.category = category
+    this.details = details
+    this.status = status
   }
 }
 
 function normalizeBaseUrl(baseUrl) {
-  return baseUrl.replace(/\/+$/, "")
+  return (baseUrl ?? "").replace(/\/+$/, "")
 }
 
 function isObject(value) {
@@ -206,15 +208,17 @@ function isValidSummary(summary) {
 }
 
 async function readJson(response, category) {
-  if (!response?.ok) {
-    throw new TripApiError(category)
-  }
-
+  let payload
   try {
-    return await response.json()
+    payload = await response.json()
   } catch {
     throw new TripApiError(category)
   }
+
+  if (!response?.ok) {
+    throw new TripApiError(category, payload, response.status)
+  }
+  return payload
 }
 
 function categorize(error, category) {
@@ -224,12 +228,12 @@ function categorize(error, category) {
   throw new TripApiError(category)
 }
 
-export async function createTrip(baseUrl, signal) {
+export async function createTrip(baseUrl, input, signal) {
   try {
     const response = await fetch(`${normalizeBaseUrl(baseUrl)}/api/trips/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(FIXED_TRIP),
+      body: JSON.stringify(input),
       signal,
     })
     const payload = await readJson(response, "create")
