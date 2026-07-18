@@ -308,14 +308,53 @@ describe("trip planner", () => {
 })
 
 describe("daily ELD log", () => {
-  it("draws a complete 24-hour SVG grid with quarter-hour ticks", () => {
+  it("fills the supplied paper log with trip data and duty lines", () => {
     const { container } = render(<EldLogSheets snapshot={snapshot()} />)
 
     expect(
-      screen.getByLabelText("Driver log grid for July 18, 2026"),
+      screen.getByLabelText("Filled driver's daily log for July 18, 2026"),
     ).toBeTruthy()
-    expect(container.querySelectorAll(".eld-grid__tick")).toHaveLength(97)
-    expect(screen.getByText("Total 24:00")).toBeTruthy()
-    expect(screen.getByText("Planned duty log")).toBeTruthy()
+    expect(container.querySelector(".eld-paper__form").getAttribute("src")).toBe(
+      "/blank-paper-log.png",
+    )
+    expect(container.querySelectorAll(".eld-paper__status-line")).toHaveLength(4)
+    expect(container.querySelector(".eld-paper__writing").textContent).toContain(
+      "New York, NY, USA",
+    )
+    expect(container.querySelector(".eld-paper__writing").textContent).toContain(
+      "Dallas, TX, USA",
+    )
+  })
+
+  it("creates one complete paper sheet for every trip day", () => {
+    const multiDay = snapshot()
+    const nextDay = {
+      ...multiDay.log_days[0],
+      date: "2026-07-19",
+      total_miles: 0,
+      segments: [
+        {
+          status: "off_duty",
+          start: "2026-07-19T00:00:00",
+          end: "2026-07-20T00:00:00",
+          duration_minutes: 1440,
+          note: "outside trip",
+        },
+      ],
+      status_totals_minutes: {
+        off_duty: 1440,
+        sleeper_berth: 0,
+        driving: 0,
+        on_duty_not_driving: 0,
+      },
+    }
+    multiDay.log_days.push(nextDay)
+
+    const { container } = render(<EldLogSheets snapshot={multiDay} />)
+
+    expect(screen.getAllByTestId("eld-paper-log")).toHaveLength(2)
+    expect(screen.getAllByTestId("eld-log-overlay")).toHaveLength(2)
+    expect(container.querySelectorAll(".eld-paper__form")).toHaveLength(2)
+    expect(screen.getByRole("tab", { name: /Day 2/ })).toBeTruthy()
   })
 })

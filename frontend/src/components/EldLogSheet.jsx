@@ -11,7 +11,6 @@ import {
 } from "@mui/material"
 
 import {
-  STATUS_META,
   formatDate,
   formatMiles,
   minuteOfLogDay,
@@ -25,18 +24,19 @@ const ROWS = [
   "driving",
   "on_duty_not_driving",
 ]
-const GRID_X = 138
-const GRID_Y = 76
-const GRID_WIDTH = 720
-const ROW_HEIGHT = 43
-const GRID_HEIGHT = ROW_HEIGHT * ROWS.length
-
-function xForMinute(minute) {
-  return GRID_X + (minute / 1_440) * GRID_WIDTH
+const PAPER_WIDTH = 513
+const PAPER_HEIGHT = 518
+const GRID_X = 65
+const GRID_WIDTH = 388
+const ROW_Y = {
+  off_duty: 181,
+  sleeper_berth: 199,
+  driving: 217,
+  on_duty_not_driving: 235,
 }
 
-function yForStatus(status) {
-  return GRID_Y + ROWS.indexOf(status) * ROW_HEIGHT + ROW_HEIGHT / 2
+function xForMinute(minute) {
+  return GRID_X + (Math.max(0, Math.min(1_440, minute)) / 1_440) * GRID_WIDTH
 }
 
 function formatLogTotal(minutes) {
@@ -45,207 +45,142 @@ function formatLogTotal(minutes) {
   return `${hours}:${String(mins).padStart(2, "0")}`
 }
 
-function LogGrid({ day }) {
-  const total = ROWS.reduce(
-    (sum, status) => sum + day.status_totals_minutes[status],
-    0,
+function shorten(value, length) {
+  if (!value || value.length <= length) return value
+  return `${value.slice(0, length - 1).trimEnd()}…`
+}
+
+function dateParts(date) {
+  const [year, month, day] = date.split("-")
+  return { day, month, year: year.slice(-2) }
+}
+
+function remarksForDay(day, snapshot) {
+  const stopRemarks = stopsForDate(snapshot.stops, day.date).map(
+    (stop) =>
+      `${stop.start.slice(11, 16)} ${stopLabel(stop.kind)} — mile ${formatMiles(stop.cumulative_miles, 0)}`,
   )
+  const segmentRemarks = day.segments
+    .filter((segment) => segment.note && segment.note !== "outside trip")
+    .map(
+      (segment) =>
+        `${segment.start.slice(11, 16)} ${segment.note}`,
+    )
+
+  return [...new Set([...stopRemarks, ...segmentRemarks])]
+    .slice(0, 3)
+    .map((remark) => shorten(remark, 70))
+}
+
+function PaperLogOverlay({ day, snapshot }) {
+  const parts = dateParts(day.date)
+  const remarks = remarksForDay(day, snapshot)
 
   return (
     <svg
-      aria-label={`Driver log grid for ${formatDate(day.date)}`}
-      className="eld-grid"
+      aria-label={`Filled driver's daily log for ${formatDate(day.date)}`}
+      className="eld-paper__overlay"
+      data-testid="eld-log-overlay"
       role="img"
-      viewBox="0 0 980 282"
+      viewBox={`0 0 ${PAPER_WIDTH} ${PAPER_HEIGHT}`}
     >
-      <rect
-        className="eld-grid__outline"
-        height={GRID_HEIGHT}
-        width={GRID_WIDTH}
-        x={GRID_X}
-        y={GRID_Y}
-      />
+      <title>{`Filled driver's daily log for ${formatDate(day.date)}`}</title>
 
-      {ROWS.map((status, index) => {
-        const y = GRID_Y + index * ROW_HEIGHT
-        return (
-          <g key={status}>
-            <text className="eld-grid__row-label" x="126" y={y + 26}>
-              {STATUS_META[status].shortLabel}
-            </text>
-            {index > 0 && (
+      <g className="eld-paper__writing">
+        <text textAnchor="middle" x="194" y="27">{parts.month}</text>
+        <text textAnchor="middle" x="235" y="27">{parts.day}</text>
+        <text textAnchor="middle" x="273" y="27">{parts.year}</text>
+
+        <text x="64" y="45">
+          {shorten(snapshot.locations.current.label, 38)}
+        </text>
+        <text x="262" y="45">
+          {shorten(snapshot.locations.dropoff.label, 34)}
+        </text>
+
+        <text textAnchor="middle" x="94" y="80">
+          {formatMiles(day.total_miles, 0)}
+        </text>
+        <text textAnchor="middle" x="180" y="80">
+          {formatMiles(day.total_miles, 0)}
+        </text>
+
+        {ROWS.map((status) => (
+          <text
+            className="eld-paper__total"
+            key={status}
+            textAnchor="middle"
+            x="479"
+            y={ROW_Y[status] + 3}
+          >
+            {formatLogTotal(day.status_totals_minutes[status])}
+          </text>
+        ))}
+
+        {remarks.map((remark, index) => (
+          <text key={remark} x="78" y={278 + index * 12}>
+            {remark}
+          </text>
+        ))}
+      </g>
+
+      <g className="eld-paper__duty-lines">
+        {day.segments.map((segment, index) => {
+          const start = minuteOfLogDay(segment.start, day.date)
+          const end = minuteOfLogDay(segment.end, day.date)
+          const previous = day.segments[index - 1]
+          const y = ROW_Y[segment.status]
+
+          return (
+            <g key={`${segment.start}-${segment.status}-${index}`}>
+              {previous && (
+                <line
+                  className="eld-paper__transition"
+                  x1={xForMinute(start)}
+                  x2={xForMinute(start)}
+                  y1={ROW_Y[previous.status]}
+                  y2={y}
+                />
+              )}
               <line
-                className="eld-grid__row-line"
-                x1={GRID_X}
-                x2={GRID_X + GRID_WIDTH}
+                className="eld-paper__status-line"
+                x1={xForMinute(start)}
+                x2={xForMinute(end)}
                 y1={y}
                 y2={y}
               />
-            )}
-            <text
-              className="eld-grid__total"
-              x="886"
-              y={y + 26}
-            >
-              {formatLogTotal(day.status_totals_minutes[status])}
-            </text>
-          </g>
-        )
-      })}
-
-      {Array.from({ length: 97 }, (_, index) => {
-        const x = GRID_X + (index / 96) * GRID_WIDTH
-        const isHour = index % 4 === 0
-        const isHalfHour = index % 2 === 0
-        return (
-          <line
-            className={
-              isHour
-                ? "eld-grid__tick eld-grid__tick--hour"
-                : isHalfHour
-                  ? "eld-grid__tick eld-grid__tick--half"
-                  : "eld-grid__tick eld-grid__tick--quarter"
-            }
-            key={index}
-            x1={x}
-            x2={x}
-            y1={isHour ? GRID_Y : GRID_Y + 7}
-            y2={GRID_Y + GRID_HEIGHT}
-          />
-        )
-      })}
-
-      {Array.from({ length: 25 }, (_, hour) => (
-        <text
-          className="eld-grid__hour"
-          key={hour}
-          textAnchor={
-            hour === 0 ? "start" : hour === 24 ? "end" : "middle"
-          }
-          x={xForMinute(hour * 60)}
-          y="65"
-        >
-          {hour === 0
-            ? "Midnight"
-            : hour === 12
-              ? "Noon"
-              : hour === 24
-                ? "Midnight"
-                : hour > 12
-                  ? hour - 12
-                  : hour}
-        </text>
-      ))}
-
-      {day.segments.map((segment, index) => {
-        const start = minuteOfLogDay(segment.start, day.date)
-        const end = minuteOfLogDay(segment.end, day.date)
-        const y = yForStatus(segment.status)
-        const previous = day.segments[index - 1]
-        return (
-          <g key={`${segment.start}-${segment.status}-${index}`}>
-            {previous && (
-              <line
-                className="eld-grid__transition"
-                x1={xForMinute(start)}
-                x2={xForMinute(start)}
-                y1={yForStatus(previous.status)}
-                y2={y}
-              />
-            )}
-            <line
-              className="eld-grid__status-line"
-              style={{ stroke: STATUS_META[segment.status].color }}
-              x1={xForMinute(start)}
-              x2={xForMinute(end)}
-              y1={y}
-              y2={y}
-            />
-          </g>
-        )
-      })}
-
-      <text className="eld-grid__totals-heading" x="886" y="65">
-        Hours
-      </text>
-      <text
-        className={total === 1_440 ? "eld-grid__day-total" : "eld-grid__day-total eld-grid__day-total--error"}
-        x="886"
-        y={GRID_Y + GRID_HEIGHT + 26}
-      >
-        Total {formatLogTotal(total)}
-      </text>
+            </g>
+          )
+        })}
+      </g>
     </svg>
   )
 }
 
-function LogSheet({ day, snapshot }) {
-  const events = stopsForDate(snapshot.stops, day.date)
-  const remarks = [
-    ...events.map(
-      (stop) =>
-        `${stop.start.slice(11, 16)} ${stopLabel(stop.kind)} at ${formatMiles(stop.cumulative_miles, 0)} mi`,
-    ),
-    ...day.segments
-      .filter((segment) => segment.note && segment.note !== "outside trip")
-      .map((segment) => segment.note),
-  ]
-  const uniqueRemarks = [...new Set(remarks)]
-
+function LogSheet({ day, index, snapshot }) {
   return (
     <Box className="eld-sheet" component="article">
-      <div className="eld-sheet__masthead">
+      <div className="eld-sheet__caption">
         <div>
-          <p className="eld-sheet__form-label">DRIVER’S DAILY LOG</p>
-          <h3>{formatDate(day.date)}</h3>
-        </div>
-        <div className="eld-sheet__summary">
-          <span>
-            <small>Total miles</small>
-            <strong>{formatMiles(day.total_miles, 0)}</strong>
-          </span>
-          <span>
-            <small>Record type</small>
-            <strong>Planned duty log</strong>
-          </span>
+          <Typography component="h3" variant="subtitle1">
+            Day {index + 1} · {formatDate(day.date)}
+          </Typography>
+          <Typography color="text.secondary" variant="caption">
+            {formatMiles(day.total_miles, 0)} driving miles · completed 24-hour form
+          </Typography>
         </div>
       </div>
 
-      <div className="eld-sheet__route">
-        <span>
-          <small>From</small>
-          {snapshot.locations.current.label}
-        </span>
-        <span>
-          <small>Via</small>
-          {snapshot.locations.pickup.label}
-        </span>
-        <span>
-          <small>To</small>
-          {snapshot.locations.dropoff.label}
-        </span>
-      </div>
-
-      <div className="eld-grid-scroll">
-        <LogGrid day={day} />
-      </div>
-
-      <div className="eld-sheet__legend">
-        {ROWS.map((status) => (
-          <span key={status}>
-            <i style={{ background: STATUS_META[status].color }} />
-            {STATUS_META[status].label}
-          </span>
-        ))}
-      </div>
-
-      <div className="eld-sheet__remarks">
-        <strong>Remarks</strong>
-        <p>
-          {uniqueRemarks.length
-            ? uniqueRemarks.join(" · ")
-            : "No scheduled stops or additional remarks."}
-        </p>
+      <div className="eld-paper-scroll">
+        <div className="eld-paper" data-testid="eld-paper-log">
+          <img
+            alt=""
+            aria-hidden="true"
+            className="eld-paper__form"
+            src="/blank-paper-log.png"
+          />
+          <PaperLogOverlay day={day} snapshot={snapshot} />
+        </div>
       </div>
     </Box>
   )
@@ -276,7 +211,7 @@ export default function EldLogSheets({ snapshot }) {
             Daily driver logs
           </Typography>
           <Typography color="text.secondary" variant="body2">
-            One 24-hour duty record per calendar day.
+            Filled paper log sheets · one form per calendar day.
           </Typography>
         </Box>
         <Button
@@ -310,8 +245,8 @@ export default function EldLogSheets({ snapshot }) {
       <div className="eld-days">
         {snapshot.log_days.map((day, index) => (
           <div
-            aria-labelledby={`log-tab-${index}`}
             aria-hidden={activeDay !== index}
+            aria-labelledby={`log-tab-${index}`}
             className={
               activeDay === index
                 ? "eld-day-panel eld-day-panel--active"
@@ -320,7 +255,7 @@ export default function EldLogSheets({ snapshot }) {
             key={day.date}
             role="tabpanel"
           >
-            <LogSheet day={day} snapshot={snapshot} />
+            <LogSheet day={day} index={index} snapshot={snapshot} />
           </div>
         ))}
       </div>
