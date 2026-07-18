@@ -387,20 +387,20 @@ describe("trip planner", () => {
 })
 
 describe("daily ELD log", () => {
-  it("fills the supplied paper log with trip data and duty lines", () => {
+  it("draws a complete HTML paper log with trip data and duty lines", () => {
     const { container } = render(<EldLogSheets snapshot={snapshot()} />)
 
     expect(
       screen.getByLabelText("Filled driver's daily log for July 18, 2026"),
     ).toBeTruthy()
-    expect(container.querySelector(".eld-paper__form").getAttribute("src")).toBe(
-      "/blank-paper-log.png",
-    )
-    expect(container.querySelectorAll(".eld-paper__status-line")).toHaveLength(4)
-    expect(container.querySelector(".eld-paper__writing").textContent).toContain(
+    expect(container.querySelector(".eld-paper img")).toBeNull()
+    expect(screen.getByText("Drivers Daily Log")).toBeTruthy()
+    expect(container.querySelectorAll(".paper-log__tick")).toHaveLength(97)
+    expect(container.querySelectorAll(".paper-log__status-line")).toHaveLength(4)
+    expect(container.querySelector(".paper-log").textContent).toContain(
       "New York, NY, USA",
     )
-    expect(container.querySelector(".eld-paper__writing").textContent).toContain(
+    expect(container.querySelector(".paper-log").textContent).toContain(
       "Dallas, TX, USA",
     )
   })
@@ -432,8 +432,8 @@ describe("daily ELD log", () => {
     const { container } = render(<EldLogSheets snapshot={multiDay} />)
 
     expect(screen.getAllByTestId("eld-paper-log")).toHaveLength(2)
-    expect(screen.getAllByTestId("eld-log-overlay")).toHaveLength(2)
-    expect(container.querySelectorAll(".eld-paper__form")).toHaveLength(2)
+    expect(screen.getAllByTestId("eld-log-form")).toHaveLength(2)
+    expect(container.querySelectorAll(".paper-log")).toHaveLength(2)
     expect(screen.getByRole("tab", { name: /Day 2/ })).toBeTruthy()
   })
 })

@@ -178,54 +178,322 @@ body {
 }
 
 .eld-paper {
-  position: relative;
   width: min(100%, 860px);
-  min-width: 513px;
+  min-width: 760px;
   margin: 0 auto;
-  aspect-ratio: 513 / 518;
-  overflow: hidden;
   background: #fff;
   border: 1px solid #d0d5dd;
   box-shadow: 0 3px 12px rgb(16 24 40 / 0.12);
 }
 
-.eld-paper__form,
-.eld-paper__overlay {
+.paper-log {
+  padding: 20px 22px 14px;
+  color: #111;
+  background: #fff;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 9px;
+}
+
+.paper-log h4,
+.paper-log h5,
+.paper-log p {
+  margin: 0;
+}
+
+.paper-log__masthead {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr 1.2fr;
+  align-items: start;
+  gap: 18px;
+}
+
+.paper-log__masthead h4 {
+  font-size: 24px;
+  line-height: 1;
+}
+
+.paper-log__masthead p {
+  margin-top: 4px;
+  text-align: center;
+}
+
+.paper-log__date {
+  display: grid;
+  grid-template-columns: repeat(5, auto);
+  align-items: start;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.paper-log__copy {
+  font-size: 8px;
+  line-height: 1.6;
+}
+
+.paper-log__line-field,
+.paper-log__blank-line {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  text-align: center;
+}
+
+.paper-log__line-field > span,
+.paper-log__blank-line > span {
+  min-height: 23px;
+  padding: 4px 6px 2px;
+  overflow: hidden;
+  color: #173f72;
+  border-bottom: 1.4px solid #111;
+  font-family: "Segoe Print", "Bradley Hand", cursive;
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paper-log__line-field small,
+.paper-log__blank-line small {
+  min-height: 18px;
+  padding-top: 3px;
+  color: #111;
+  font-size: 8px;
+  line-height: 1.2;
+}
+
+.paper-log__route {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 32px;
+  margin-top: 4px;
+}
+
+.paper-log__route .paper-log__line-field {
+  text-align: left;
+}
+
+.paper-log__route .paper-log__line-field small {
+  order: -1;
+  padding: 0;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.paper-log__details {
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr;
+  gap: 28px;
+  margin-top: 12px;
+}
+
+.paper-log__mileage {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.paper-log__mileage .paper-log__line-field > span {
+  display: grid;
+  min-height: 38px;
+  place-items: center;
+  border: 1.4px solid #111;
+}
+
+.paper-log__vehicle > .paper-log__blank-line {
+  margin-top: 5px;
+}
+
+.paper-log__vehicle > .paper-log__blank-line > span {
+  min-height: 36px;
+  border: 1.4px solid #111;
+}
+
+.paper-log__carrier {
+  display: grid;
+  gap: 2px;
+}
+
+.paper-log__grid {
+  display: grid;
+  grid-template-columns: 100px minmax(0, 1fr) 58px;
+  margin-top: 16px;
+}
+
+.paper-log__grid-corner,
+.paper-log__hours,
+.paper-log__total-heading {
+  min-height: 38px;
+  color: #fff;
+  background: #111;
+}
+
+.paper-log__grid-corner,
+.paper-log__total-heading {
+  display: grid;
+  place-items: center;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.paper-log__hours {
+  display: grid;
+  grid-template-columns: repeat(24, minmax(0, 1fr));
+  align-items: end;
+}
+
+.paper-log__hours span {
+  padding-bottom: 7px;
+  font-size: 8px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.paper-log__row-labels,
+.paper-log__totals {
+  display: grid;
+  grid-template-rows: repeat(4, 28px);
+}
+
+.paper-log__row-labels > div {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 1.05;
+  text-align: center;
+}
+
+.paper-log__timeline {
+  position: relative;
+  height: 112px;
+  overflow: hidden;
+  border: 1.4px solid #111;
+  background:
+    linear-gradient(
+      to bottom,
+      transparent calc(25% - 0.5px),
+      #111 calc(25% - 0.5px),
+      #111 calc(25% + 0.5px),
+      transparent calc(25% + 0.5px),
+      transparent calc(50% - 0.5px),
+      #111 calc(50% - 0.5px),
+      #111 calc(50% + 0.5px),
+      transparent calc(50% + 0.5px),
+      transparent calc(75% - 0.5px),
+      #111 calc(75% - 0.5px),
+      #111 calc(75% + 0.5px),
+      transparent calc(75% + 0.5px)
+    );
+}
+
+.paper-log__tick {
   position: absolute;
+  z-index: 1;
+  top: 0;
+  bottom: 0;
+  width: 0;
+  border-left: 1px solid #111;
+}
+
+.paper-log__tick--half {
+  opacity: 0.58;
+}
+
+.paper-log__tick--quarter {
+  opacity: 0.3;
+}
+
+.paper-log__trace {
+  position: absolute;
+  z-index: 2;
   inset: 0;
-  display: block;
   width: 100%;
   height: 100%;
-}
-
-.eld-paper__form {
-  object-fit: fill;
-}
-
-.eld-paper__overlay {
   pointer-events: none;
 }
 
-.eld-paper__writing {
-  fill: #173f72;
-  font-family: "Segoe Print", "Bradley Hand", cursive;
-  font-size: 7px;
-  font-weight: 650;
-}
-
-.eld-paper__total {
-  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
-  font-size: 7px;
-  font-weight: 750;
-  font-variant-numeric: tabular-nums;
-}
-
-.eld-paper__status-line,
-.eld-paper__transition {
+.paper-log__status-line,
+.paper-log__transition {
   fill: none;
   stroke: #173f72;
   stroke-linecap: square;
-  stroke-width: 1.8;
+  stroke-width: 4;
+}
+
+.paper-log__totals span {
+  display: grid;
+  place-items: center;
+  margin-left: 10px;
+  color: #173f72;
+  border-bottom: 1px solid #111;
+  font-family: ui-monospace, "SFMono-Regular", Consolas, monospace;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.paper-log__remarks {
+  min-height: 218px;
+  margin-top: 18px;
+  padding: 0 8px 8px 14px;
+  border-bottom: 1.4px solid #111;
+  border-left: 2px solid #111;
+}
+
+.paper-log__remarks h5,
+.paper-log__recap h5 {
+  font-size: 12px;
+}
+
+.paper-log__remark-lines {
+  min-height: 72px;
+  padding: 3px 0 0 82px;
+  color: #173f72;
+  font-family: "Segoe Print", "Bradley Hand", cursive;
+  font-size: 10px;
+}
+
+.paper-log__remark-lines p {
+  margin-bottom: 5px;
+}
+
+.paper-log__shipping {
+  display: grid;
+  grid-template-columns: 230px minmax(0, 1fr);
+  align-items: end;
+  gap: 24px;
+  margin-top: 20px;
+}
+
+.paper-log__shipping > div {
+  display: grid;
+  gap: 2px;
+}
+
+.paper-log__shipping > p {
+  padding-bottom: 4px;
+  font-size: 7px;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.paper-log__recap {
+  display: grid;
+  grid-template-columns: 0.8fr 0.65fr repeat(4, 1fr);
+  gap: 14px;
+  min-height: 116px;
+  padding: 12px 4px 8px;
+  border-bottom: 2px solid #111;
+}
+
+.paper-log__recap > div {
+  font-size: 8px;
+  line-height: 1.35;
 }
 
 @media (max-width: 600px) {

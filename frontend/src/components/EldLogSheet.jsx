@@ -24,19 +24,17 @@ const ROWS = [
   "driving",
   "on_duty_not_driving",
 ]
-const PAPER_WIDTH = 513
-const PAPER_HEIGHT = 518
-const GRID_X = 65
-const GRID_WIDTH = 388
-const ROW_Y = {
-  off_duty: 181,
-  sleeper_berth: 199,
-  driving: 217,
-  on_duty_not_driving: 235,
+const ROW_LABELS = {
+  off_duty: ["1. Off Duty"],
+  sleeper_berth: ["2. Sleeper", "Berth"],
+  driving: ["3. Driving"],
+  on_duty_not_driving: ["4. On Duty", "(not driving)"],
 }
-
-function xForMinute(minute) {
-  return GRID_X + (Math.max(0, Math.min(1_440, minute)) / 1_440) * GRID_WIDTH
+const TRACE_Y = {
+  off_duty: 10,
+  sleeper_berth: 30,
+  driving: 50,
+  on_duty_not_driving: 70,
 }
 
 function formatLogTotal(minutes) {
@@ -62,98 +60,209 @@ function remarksForDay(day, snapshot) {
   )
   const segmentRemarks = day.segments
     .filter((segment) => segment.note && segment.note !== "outside trip")
-    .map(
-      (segment) =>
-        `${segment.start.slice(11, 16)} ${segment.note}`,
-    )
+    .map((segment) => `${segment.start.slice(11, 16)} ${segment.note}`)
 
   return [...new Set([...stopRemarks, ...segmentRemarks])]
     .slice(0, 3)
     .map((remark) => shorten(remark, 70))
 }
 
-function PaperLogOverlay({ day, snapshot }) {
+function DutyTrace({ day }) {
+  return (
+    <svg
+      aria-hidden="true"
+      className="paper-log__trace"
+      preserveAspectRatio="none"
+      viewBox="0 0 1440 80"
+    >
+      {day.segments.map((segment, index) => {
+        const start = minuteOfLogDay(segment.start, day.date)
+        const end = minuteOfLogDay(segment.end, day.date)
+        const previous = day.segments[index - 1]
+        const y = TRACE_Y[segment.status]
+
+        return (
+          <g key={`${segment.start}-${segment.status}-${index}`}>
+            {previous && (
+              <line
+                className="paper-log__transition"
+                x1={start}
+                x2={start}
+                y1={TRACE_Y[previous.status]}
+                y2={y}
+              />
+            )}
+            <line
+              className="paper-log__status-line"
+              x1={start}
+              x2={end}
+              y1={y}
+              y2={y}
+            />
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
+function LineField({ children, label }) {
+  return (
+    <div className="paper-log__line-field">
+      <span>{children}</span>
+      <small>{label}</small>
+    </div>
+  )
+}
+
+function BlankLine({ label }) {
+  return (
+    <div className="paper-log__blank-line">
+      <span aria-hidden="true">&nbsp;</span>
+      <small>{label}</small>
+    </div>
+  )
+}
+
+function PaperLogForm({ day, snapshot }) {
   const parts = dateParts(day.date)
   const remarks = remarksForDay(day, snapshot)
 
   return (
-    <svg
+    <section
       aria-label={`Filled driver's daily log for ${formatDate(day.date)}`}
-      className="eld-paper__overlay"
-      data-testid="eld-log-overlay"
-      role="img"
-      viewBox={`0 0 ${PAPER_WIDTH} ${PAPER_HEIGHT}`}
+      className="paper-log"
+      data-testid="eld-log-form"
     >
-      <title>{`Filled driver's daily log for ${formatDate(day.date)}`}</title>
+      <header className="paper-log__masthead">
+        <div>
+          <h4>Drivers Daily Log</h4>
+          <p>[24 hours]</p>
+        </div>
+        <div className="paper-log__date" aria-label="Log date">
+          <LineField label="(month)">{parts.month}</LineField>
+          <span>/</span>
+          <LineField label="(day)">{parts.day}</LineField>
+          <span>/</span>
+          <LineField label="(year)">{parts.year}</LineField>
+        </div>
+        <div className="paper-log__copy">
+          <strong>Original</strong> - File at home terminal.
+          <br />
+          <strong>Duplicate</strong> - Driver retains in possession for 8 days.
+        </div>
+      </header>
 
-      <g className="eld-paper__writing">
-        <text textAnchor="middle" x="194" y="27">{parts.month}</text>
-        <text textAnchor="middle" x="235" y="27">{parts.day}</text>
-        <text textAnchor="middle" x="273" y="27">{parts.year}</text>
+      <div className="paper-log__route">
+        <LineField label="From:">
+          {shorten(snapshot.locations.current.label, 48)}
+        </LineField>
+        <LineField label="To:">
+          {shorten(snapshot.locations.dropoff.label, 48)}
+        </LineField>
+      </div>
 
-        <text x="64" y="45">
-          {shorten(snapshot.locations.current.label, 38)}
-        </text>
-        <text x="262" y="45">
-          {shorten(snapshot.locations.dropoff.label, 34)}
-        </text>
+      <div className="paper-log__details">
+        <div className="paper-log__vehicle">
+          <div className="paper-log__mileage">
+            <LineField label="Total Miles Driving Today">
+              {formatMiles(day.total_miles, 0)}
+            </LineField>
+            <LineField label="Total Mileage Today">
+              {formatMiles(day.total_miles, 0)}
+            </LineField>
+          </div>
+          <BlankLine label="Truck/Tractor and Trailer Numbers or License Plate(s)/State" />
+        </div>
+        <div className="paper-log__carrier">
+          <BlankLine label="Name of Carrier or Carriers" />
+          <BlankLine label="Main Office Address" />
+          <BlankLine label="Home Terminal Address" />
+        </div>
+      </div>
 
-        <text textAnchor="middle" x="94" y="80">
-          {formatMiles(day.total_miles, 0)}
-        </text>
-        <text textAnchor="middle" x="180" y="80">
-          {formatMiles(day.total_miles, 0)}
-        </text>
+      <div className="paper-log__grid" aria-label="24-hour duty status grid">
+        <div className="paper-log__grid-corner">Mid-<br />night</div>
+        <div className="paper-log__hours">
+          {Array.from({ length: 24 }, (_, index) => {
+            const hour = index + 1
+            return (
+              <span key={hour}>
+                {hour === 12 ? "Noon" : hour === 24 ? "Midnight" : hour > 12 ? hour - 12 : hour}
+              </span>
+            )
+          })}
+        </div>
+        <div className="paper-log__total-heading">Total<br />Hours</div>
 
-        {ROWS.map((status) => (
-          <text
-            className="eld-paper__total"
-            key={status}
-            textAnchor="middle"
-            x="479"
-            y={ROW_Y[status] + 3}
-          >
-            {formatLogTotal(day.status_totals_minutes[status])}
-          </text>
-        ))}
+        <div className="paper-log__row-labels">
+          {ROWS.map((status) => (
+            <div key={status}>
+              {ROW_LABELS[status].map((label) => (
+                <span key={label}>{label}</span>
+              ))}
+            </div>
+          ))}
+        </div>
+        <div className="paper-log__timeline">
+          {Array.from({ length: 97 }, (_, index) => (
+            <i
+              className={
+                index % 4 === 0
+                  ? "paper-log__tick paper-log__tick--hour"
+                  : index % 2 === 0
+                    ? "paper-log__tick paper-log__tick--half"
+                    : "paper-log__tick paper-log__tick--quarter"
+              }
+              key={index}
+              style={{ left: `${(index / 96) * 100}%` }}
+            />
+          ))}
+          <DutyTrace day={day} />
+        </div>
+        <div className="paper-log__totals">
+          {ROWS.map((status) => (
+            <span key={status}>
+              {formatLogTotal(day.status_totals_minutes[status])}
+            </span>
+          ))}
+        </div>
+      </div>
 
-        {remarks.map((remark, index) => (
-          <text key={remark} x="78" y={278 + index * 12}>
-            {remark}
-          </text>
-        ))}
-      </g>
+      <section className="paper-log__remarks">
+        <h5>Remarks</h5>
+        <div className="paper-log__remark-lines">
+          {remarks.length ? (
+            remarks.map((remark) => <p key={remark}>{remark}</p>)
+          ) : (
+            <p>No scheduled stops or additional remarks.</p>
+          )}
+        </div>
+        <div className="paper-log__shipping">
+          <div>
+            <strong>Shipping Documents:</strong>
+            <BlankLine label="DVL or Manifest No. or" />
+            <BlankLine label="Shipper & Commodity" />
+          </div>
+          <p>
+            Enter the place where you reported and were released from work,
+            and where each change of duty occurred. Use home terminal time.
+          </p>
+        </div>
+      </section>
 
-      <g className="eld-paper__duty-lines">
-        {day.segments.map((segment, index) => {
-          const start = minuteOfLogDay(segment.start, day.date)
-          const end = minuteOfLogDay(segment.end, day.date)
-          const previous = day.segments[index - 1]
-          const y = ROW_Y[segment.status]
-
-          return (
-            <g key={`${segment.start}-${segment.status}-${index}`}>
-              {previous && (
-                <line
-                  className="eld-paper__transition"
-                  x1={xForMinute(start)}
-                  x2={xForMinute(start)}
-                  y1={ROW_Y[previous.status]}
-                  y2={y}
-                />
-              )}
-              <line
-                className="eld-paper__status-line"
-                x1={xForMinute(start)}
-                x2={xForMinute(end)}
-                y1={y}
-                y2={y}
-              />
-            </g>
-          )
-        })}
-      </g>
-    </svg>
+      <section className="paper-log__recap">
+        <div>
+          <h5>Recap:</h5>
+          <p>Complete at<br />end of day</p>
+        </div>
+        <div><strong>70 Hour/<br />8 Day<br />Drivers</strong></div>
+        <div><strong>On duty<br />hours today</strong></div>
+        <div><strong>A.</strong> Total hours on duty last 7 days including today.</div>
+        <div><strong>B.</strong> Total hours available tomorrow. 70 hr. minus A.</div>
+        <div><strong>C.</strong> Total hours on duty last 8 days including today.</div>
+      </section>
+    </section>
   )
 }
 
@@ -173,13 +282,7 @@ function LogSheet({ day, index, snapshot }) {
 
       <div className="eld-paper-scroll">
         <div className="eld-paper" data-testid="eld-paper-log">
-          <img
-            alt=""
-            aria-hidden="true"
-            className="eld-paper__form"
-            src="/blank-paper-log.png"
-          />
-          <PaperLogOverlay day={day} snapshot={snapshot} />
+          <PaperLogForm day={day} snapshot={snapshot} />
         </div>
       </div>
     </Box>
