@@ -28,7 +28,8 @@ def _clean_list(name, default):
 
 def _validate_host(host, setting_name):
     if (
-        "*" in host
+        host.startswith(".")
+        or "*" in host
         or "://" in host
         or "/" in host
         or any(character.isspace() for character in host)
