@@ -1,14 +1,23 @@
-"""Shared pytest fixtures for the hos_engine test suite.
+"""Shared deterministic values for trip and HOS service tests.
 
 Leg-constructing fixtures were deferred from plan 01-01 (Leg didn't exist
 yet) and are added here in plan 01-02, now that hos_engine.models exists.
 See 01-01-PLAN.md / 01-02-PLAN.md for the rationale.
 """
 from datetime import datetime
+import uuid
 
 import pytest
 
+from trips.hos_engine.engine import simulate
+from trips.hos_engine.log_day_builder import split
 from trips.hos_engine.models import Leg
+from trips.services.ors_client import (
+    ResolvedLocation,
+    ResolvedRoute,
+    ResolvedRouteLeg,
+)
+from trips.services.route_geometry import METERS_PER_MILE, resolve_stops
 
 # Default average speed used by tests when synthesizing multi-day legs from a
 # mileage figure. This is a TEST-ONLY constant — the engine itself never
@@ -60,3 +69,54 @@ def multiday_legs():
     single day (GC-4, 10-hour off-duty reset).
     """
     return [legs_from_miles(600), legs_from_miles(600)]
+
+
+@pytest.fixture
+def trip_creation_values():
+    """Complete, injected values shared by snapshot and orchestration tests."""
+    validated = {
+        "current_location": "Current query",
+        "pickup_location": "Pickup query",
+        "dropoff_location": "Dropoff query",
+        "cycle_hours_used": 12.5,
+    }
+    locations = (
+        ResolvedLocation("Current query", "Current label", -87.0, 41.0),
+        ResolvedLocation("Pickup query", "Pickup label", -86.99, 41.0),
+        ResolvedLocation("Dropoff query", "Dropoff label", -86.97, 41.0),
+    )
+    route = ResolvedRoute(
+        total_meters=3 * METERS_PER_MILE,
+        total_seconds=6 * 60 * 60,
+        legs=(
+            ResolvedRouteLeg(METERS_PER_MILE, 2 * 60 * 60, 0, 2),
+            ResolvedRouteLeg(2 * METERS_PER_MILE, 4 * 60 * 60, 2, 4),
+        ),
+        geometry=(
+            (-87.0, 41.0),
+            (-86.995, 41.0),
+            (-86.99, 41.0),
+            (-86.98, 41.0),
+            (-86.97, 41.0),
+        ),
+        waypoint_indices=(0, 2, 4),
+    )
+    departure = datetime(2026, 7, 18, 8)
+    schedule = simulate(
+        [Leg(1, 2), Leg(2, 4)],
+        validated["cycle_hours_used"],
+        departure,
+        pickup_after_leg=1,
+    )
+    resolved_stops = resolve_stops(schedule.stops, route)
+
+    return {
+        "trip_id": uuid.UUID("12345678-1234-4abc-9234-1234567890ab"),
+        "validated": validated,
+        "locations": locations,
+        "route": route,
+        "schedule": schedule,
+        "resolved_stops": resolved_stops,
+        "log_days": split(schedule.segments),
+        "departure": departure,
+    }

@@ -163,6 +163,7 @@ def simulate(
     start_datetime: datetime,
     pickup_hours: float = 1,
     dropoff_hours: float = 1,
+    pickup_after_leg: int = 0,
 ) -> TripSchedule:
     """Simulate a full property-carrying trip into a deterministic duty-status timeline.
 
@@ -170,28 +171,44 @@ def simulate(
         legs: ordered iterable of ``Leg`` (distance_miles, duration_hours).
         cycle_hours_used: on-duty hours already used in the current 70h/8-day cycle, in ``[0, 70]``.
         start_datetime: naive local wall-clock time the driver first comes on duty (D-01/D-02).
-        pickup_hours: On-Duty-Not-Driving hours consumed before the first leg (default 1h).
+        pickup_hours: On-Duty-Not-Driving hours consumed at pickup (default 1h).
         dropoff_hours: On-Duty-Not-Driving hours consumed after the last leg (default 1h).
+        pickup_after_leg: number of leading legs driven before pickup. The
+            default ``0`` preserves pickup-before-route behavior.
 
     Returns:
         ``TripSchedule`` — a flat, time-ordered list of ``DutySegment`` plus the
         ``Stop`` markers (pickup/dropoff/fuel/break/reset/restart).
 
     Raises:
-        ValueError: if ``cycle_hours_used`` is outside ``[0, 70]`` (V5 defensive
-            validation — a correctness safety net, distinct from Phase 5's INPUT-02).
+        ValueError: if ``cycle_hours_used`` is outside ``[0, 70]`` or
+            ``pickup_after_leg`` is not an integer in the materialized leg range.
+            This is V5 defensive validation — a correctness safety net,
+            distinct from Phase 5's INPUT-02.
     """
     if not (0 <= cycle_hours_used <= 70):
         raise ValueError(
             f"cycle_hours_used must be within [0, 70], got {cycle_hours_used!r}"
         )
 
+    legs = list(legs)
+    if (
+        not isinstance(pickup_after_leg, int)
+        or isinstance(pickup_after_leg, bool)
+        or not 0 <= pickup_after_leg <= len(legs)
+    ):
+        raise ValueError(
+            "pickup_after_leg must be an integer within "
+            f"[0, {len(legs)}], got {pickup_after_leg!r}"
+        )
+
     sim = _Simulation(start_datetime, cycle_hours_used)
 
-    legs = list(legs)
     if legs:
+        for leg in legs[:pickup_after_leg]:
+            sim.drive_leg(leg.distance_miles, leg.duration_hours)
         sim.emit_on_duty_stop(round(pickup_hours * 60), kind="pickup")
-        for leg in legs:
+        for leg in legs[pickup_after_leg:]:
             sim.drive_leg(leg.distance_miles, leg.duration_hours)
         sim.emit_on_duty_stop(round(dropoff_hours * 60), kind="dropoff")
 

@@ -1,5 +1,6 @@
 """Django settings for the Spotter ELD Trip Planner backend."""
 
+import math
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -10,6 +11,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 env = environ.Env(
     DEBUG=(bool, False),
+    ORS_CONNECT_TIMEOUT_SECONDS=(float, 3.05),
+    ORS_MAX_RETRIES=(int, 1),
+    ORS_READ_TIMEOUT_SECONDS=(float, 15.0),
     RENDER=(bool, False),
 )
 environ.Env.read_env(BASE_DIR / ".env")
@@ -55,13 +59,35 @@ def _validate_origin(origin):
 
 
 SECRET_KEY = env("SECRET_KEY", default="")
+ORS_API_KEY = env("ORS_API_KEY", default="").strip()
 if IS_RENDER:
     if not SECRET_KEY.strip():
         raise ImproperlyConfigured("SECRET_KEY is required on Render.")
     if DEBUG:
         raise ImproperlyConfigured("DEBUG must be False on Render.")
+    if not ORS_API_KEY:
+        raise ImproperlyConfigured("ORS_API_KEY is required on Render.")
 else:
     SECRET_KEY = SECRET_KEY or "django-insecure-local-development-only"
+
+ORS_CONNECT_TIMEOUT_SECONDS = env.float(
+    "ORS_CONNECT_TIMEOUT_SECONDS", default=3.05
+)
+ORS_READ_TIMEOUT_SECONDS = env.float(
+    "ORS_READ_TIMEOUT_SECONDS", default=15.0
+)
+ORS_MAX_RETRIES = env.int("ORS_MAX_RETRIES", default=1)
+
+for setting_name, value in (
+    ("ORS_CONNECT_TIMEOUT_SECONDS", ORS_CONNECT_TIMEOUT_SECONDS),
+    ("ORS_READ_TIMEOUT_SECONDS", ORS_READ_TIMEOUT_SECONDS),
+):
+    if not math.isfinite(value) or value <= 0:
+        raise ImproperlyConfigured(
+            f"{setting_name} must be a finite positive number."
+        )
+if ORS_MAX_RETRIES not in {0, 1}:
+    raise ImproperlyConfigured("ORS_MAX_RETRIES must be 0 or 1.")
 
 local_hosts = ["localhost", "127.0.0.1", "testserver"]
 ALLOWED_HOSTS = _clean_list(
@@ -95,7 +121,14 @@ CORS_URLS_REGEX = r"^/api/.*$"
 INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "corsheaders",
+    "rest_framework",
+    "trips.apps.TripsConfig",
 ]
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [],
+    "UNAUTHENTICATED_USER": None,
+}
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",

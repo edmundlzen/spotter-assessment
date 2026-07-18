@@ -1,0 +1,76 @@
+"""Stable request and persisted-response representations for trip HTTP APIs."""
+
+import math
+
+from rest_framework import serializers
+from rest_framework.exceptions import APIException
+
+
+LOCATION_MAX_LENGTH = 200
+
+
+class ProviderUnavailable(APIException):
+    """Secret-safe public response for provider and creation failures."""
+
+    status_code = 503
+    default_detail = {
+        "detail": "The routing service is temporarily unavailable."
+    }
+    default_code = "provider_unavailable"
+
+
+class FiniteCycleHoursField(serializers.FloatField):
+    """Accept a real finite number inside the locked 70-hour cycle range."""
+
+    def to_internal_value(self, data):
+        if isinstance(data, bool):
+            self.fail("invalid")
+        value = super().to_internal_value(data)
+        if not math.isfinite(value):
+            self.fail("invalid")
+        return value
+
+
+class TripCreateSerializer(serializers.Serializer):
+    """Validate all public input before routing or persistence begins."""
+
+    current_location = serializers.CharField(
+        max_length=LOCATION_MAX_LENGTH,
+        trim_whitespace=True,
+        allow_blank=False,
+    )
+    pickup_location = serializers.CharField(
+        max_length=LOCATION_MAX_LENGTH,
+        trim_whitespace=True,
+        allow_blank=False,
+    )
+    dropoff_location = serializers.CharField(
+        max_length=LOCATION_MAX_LENGTH,
+        trim_whitespace=True,
+        allow_blank=False,
+    )
+    cycle_hours_used = FiniteCycleHoursField(min_value=0, max_value=70)
+
+
+class TripSummarySerializer(serializers.Serializer):
+    """Return only the compact facts persisted on the Trip row."""
+
+    def to_representation(self, instance):
+        return {
+            "id": str(instance.id),
+            "summary": {
+                "total_distance_miles": float(instance.total_distance_miles),
+                "total_duration_minutes": instance.total_duration_minutes,
+                "leg_count": instance.leg_count,
+                "stop_count": instance.stop_count,
+                "duty_segment_count": instance.duty_segment_count,
+                "log_day_count": instance.log_day_count,
+            },
+        }
+
+
+class TripDetailSerializer(serializers.Serializer):
+    """Return the complete stored result without deriving any new values."""
+
+    def to_representation(self, instance):
+        return instance.result_snapshot

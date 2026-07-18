@@ -156,6 +156,51 @@ def test_pickup_dropoff_duration_and_window_consumption(base_start_datetime):
     assert dropoff.start == driving[-1].end
 
 
+def test_pickup_after_first_leg_preserves_order_duration_and_mileage(base_start_datetime):
+    schedule = simulate(
+        [Leg(100, 2), Leg(200, 4)],
+        0,
+        base_start_datetime,
+        pickup_after_leg=1,
+    )
+    pickup = _stops(schedule, "pickup")[0]
+    dropoff = _stops(schedule, "dropoff")[0]
+
+    assert schedule.segments[0].status == DutyStatus.DRIVING
+    assert schedule.segments[0].duration_minutes == 120
+    assert schedule.segments[1] == pickup.segment
+    assert pickup.segment.status == DutyStatus.ON_DUTY_NOT_DRIVING
+    assert pickup.segment.duration_minutes == 60
+    assert pickup.cumulative_miles == pytest.approx(100.0)
+    assert dropoff.cumulative_miles == pytest.approx(300.0)
+
+
+def test_pickup_after_leg_defaults_to_before_route(base_start_datetime):
+    schedule = simulate([Leg(100, 2), Leg(200, 4)], 0, base_start_datetime)
+    pickup = _stops(schedule, "pickup")[0]
+
+    assert schedule.segments[0] == pickup.segment
+    assert pickup.cumulative_miles == pytest.approx(0.0)
+
+
+@pytest.mark.parametrize("leading_leg_count", [-1, 3])
+def test_invalid_leading_leg_count_fails_before_driving(
+    leading_leg_count, base_start_datetime, monkeypatch
+):
+    def fail_if_driven(*args, **kwargs):
+        raise AssertionError("invalid pickup_after_leg must fail before driving")
+
+    monkeypatch.setattr(_Simulation, "drive_leg", fail_if_driven)
+
+    with pytest.raises(ValueError, match="pickup_after_leg"):
+        simulate(
+            [Leg(100, 2), Leg(200, 4)],
+            0,
+            base_start_datetime,
+            pickup_after_leg=leading_leg_count,
+        )
+
+
 # Project-assumption test: the cycle uses the documented linear decrement.
 def test_cycle_linear_decrement_formula(base_start_datetime):
     state = _Simulation(base_start_datetime, 10)
