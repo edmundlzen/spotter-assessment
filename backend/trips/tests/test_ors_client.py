@@ -103,6 +103,54 @@ def test_geocode_returns_none_for_an_empty_result_without_retrying():
     assert len(session.calls) == 1
 
 
+def test_search_returns_multiple_deduplicated_suggestions():
+    payload = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "properties": {"label": "Chicago, Illinois, USA"},
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [-87.6298, 41.8781],
+                },
+            },
+            {
+                "properties": {"label": "Chicago, Illinois, USA"},
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [-87.6298, 41.8781],
+                },
+            },
+            {
+                "properties": {"label": "Chicago Heights, Illinois, USA"},
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [-87.6356, 41.5061],
+                },
+            },
+        ],
+    }
+    client, session = make_client([FakeResponse(payload)])
+
+    matches = client.search("Chicago", limit=5)
+
+    assert [match.display_label for match in matches] == [
+        "Chicago, Illinois, USA",
+        "Chicago Heights, Illinois, USA",
+    ]
+    assert session.calls[0][2]["params"]["size"] == 5
+
+
+@pytest.mark.parametrize("limit", [0, 11, True, 1.5])
+def test_search_rejects_invalid_limits_before_transport(limit):
+    client, session = make_client([])
+
+    with pytest.raises(ValueError, match="limit"):
+        client.search("Chicago", limit=limit)
+
+    assert session.calls == []
+
+
 @pytest.mark.parametrize(
     "payload",
     [

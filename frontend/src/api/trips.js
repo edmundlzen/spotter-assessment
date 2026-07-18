@@ -274,6 +274,40 @@ export async function getTrip(baseUrl, id, signal) {
   }
 }
 
+export async function searchLocations(baseUrl, query, signal) {
+  try {
+    const normalizedQuery = query.trim()
+    if (normalizedQuery.length < 3 || normalizedQuery.length > 200) {
+      throw new TripApiError("search")
+    }
+
+    const params = new URLSearchParams({ q: normalizedQuery })
+    const response = await fetch(
+      `${normalizeBaseUrl(baseUrl)}/api/locations/?${params}`,
+      { signal },
+    )
+    const payload = await readJson(response, "search")
+
+    if (
+      !isObject(payload) ||
+      !Array.isArray(payload.results) ||
+      payload.results.length > 5 ||
+      !payload.results.every(
+        (result) =>
+          isObject(result) &&
+          isNonblankString(result.label) &&
+          isCoordinate(result.coordinate),
+      )
+    ) {
+      throw new TripApiError("search")
+    }
+
+    return payload.results
+  } catch (error) {
+    categorize(error, "search")
+  }
+}
+
 function isCompleteSnapshot(snapshot, expectedId) {
   if (
     !isObject(snapshot) ||

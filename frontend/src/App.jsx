@@ -23,7 +23,12 @@ import {
 } from "@mui/material"
 
 import TripForm from "./components/TripForm.jsx"
-import { TripApiError, createTrip, getTrip } from "./api/trips.js"
+import {
+  TripApiError,
+  createTrip,
+  getTrip,
+  searchLocations,
+} from "./api/trips.js"
 import "./index.css"
 
 const TripResults = lazy(() => import("./components/TripResults.jsx"))
@@ -171,6 +176,10 @@ export default function App() {
     activeRequest.current?.abort()
     activeRequest.current = null
   }, [])
+  const searchLocationOptions = useCallback(
+    (query, signal) => searchLocations(API_BASE_URL, query, signal),
+    [],
+  )
 
   const runRequest = useCallback(async (operation) => {
     cancelActiveRequest()
@@ -302,20 +311,25 @@ export default function App() {
     <Box sx={{ minHeight: "100vh" }}>
       <AppHeader onNewTrip={newTrip} showNewTrip={view.name !== "planner"} />
       {view.name === "planner" && (
-        <Container component="main" maxWidth="sm" sx={{ py: { xs: 3, sm: 6 } }}>
+        <Container
+          component="main"
+          maxWidth="sm"
+          sx={{ minWidth: 0, overflow: "hidden", py: { xs: 3, sm: 6 } }}
+        >
           <TripForm
             busy={false}
             error={view.error}
             fieldErrors={view.fieldErrors}
             initialValues={view.initialValues}
             loadingMessage=""
+            onSearchLocations={searchLocationOptions}
             onSubmit={planTrip}
           />
           <Typography
             align="center"
             color="text.secondary"
             display="block"
-            sx={{ mt: 2 }}
+            sx={{ mt: 2, overflowWrap: "anywhere" }}
             variant="caption"
           >
             Planning aid for property-carrying drivers. Review the route and

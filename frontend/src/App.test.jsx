@@ -12,7 +12,12 @@ vi.mock("./components/TripResults.jsx", () => ({
 }))
 
 import App from "./App.jsx"
-import { createTrip, getTrip } from "./api/trips.js"
+import {
+  createTrip,
+  getTrip,
+  searchLocations,
+} from "./api/trips.js"
+import TripForm from "./components/TripForm.jsx"
 import EldLogSheets from "./components/EldLogSheet.jsx"
 
 const TRIP_ID = "87f2df41-a522-4e9c-8a79-36e728621a0a"
@@ -217,6 +222,80 @@ describe("trip API client", () => {
       status: 400,
     })
   })
+
+  it("retrieves bounded location suggestions through the Django API", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      response({
+        results: [
+          {
+            label: "Chicago, Cook County, Illinois, USA",
+            coordinate: [-87.6298, 41.8781],
+          },
+        ],
+      }),
+    )
+
+    await expect(
+      searchLocations(
+        "https://api.example.test/",
+        " Chicago ",
+        new AbortController().signal,
+      ),
+    ).resolves.toEqual([
+      {
+        label: "Chicago, Cook County, Illinois, USA",
+        coordinate: [-87.6298, 41.8781],
+      },
+    ])
+    expect(fetch).toHaveBeenCalledWith(
+      "https://api.example.test/api/locations/?q=Chicago",
+      { signal: expect.any(AbortSignal) },
+    )
+  })
+})
+
+describe("location autocomplete", () => {
+  it("searches after typing and applies the selected suggestion", async () => {
+    const onSearchLocations = vi.fn().mockResolvedValue([
+      {
+        label: "Chicago, Cook County, Illinois, USA",
+        coordinate: [-87.6298, 41.8781],
+      },
+    ])
+
+    render(
+      <TripForm
+        busy={false}
+        loadingMessage=""
+        onSearchLocations={onSearchLocations}
+        onSubmit={vi.fn()}
+      />,
+    )
+
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Current location" }),
+      { target: { value: "Chic" } },
+    )
+
+    expect(
+      await screen.findByRole("option", {
+        name: "Chicago, Cook County, Illinois, USA",
+      }),
+    ).toBeTruthy()
+    expect(onSearchLocations).toHaveBeenCalledWith(
+      "Chic",
+      expect.any(AbortSignal),
+    )
+
+    fireEvent.click(
+      screen.getByRole("option", {
+        name: "Chicago, Cook County, Illinois, USA",
+      }),
+    )
+    expect(
+      screen.getByRole("combobox", { name: "Current location" }).value,
+    ).toBe("Chicago, Cook County, Illinois, USA")
+  })
 })
 
 describe("trip planner", () => {
@@ -235,7 +314,7 @@ describe("trip planner", () => {
     expect(
       screen.getByRole("heading", { name: "Plan a trip" }),
     ).toBeTruthy()
-    expect(screen.getByRole("textbox", { name: "Current location" })).toBeTruthy()
+    expect(screen.getByRole("combobox", { name: "Current location" })).toBeTruthy()
     expect(screen.getByRole("button", { name: "Plan my trip" })).toBeTruthy()
     expect(fetch).not.toHaveBeenCalled()
   })
@@ -256,7 +335,7 @@ describe("trip planner", () => {
     render(<App />)
 
     fireEvent.click(screen.getByRole("button", { name: "Use sample trip" }))
-    expect(screen.getByRole("textbox", { name: "Current location" }).value).toBe(
+    expect(screen.getByRole("combobox", { name: "Current location" }).value).toBe(
       "New York, NY",
     )
     fireEvent.click(screen.getByRole("button", { name: "Plan my trip" }))
@@ -287,7 +366,7 @@ describe("trip planner", () => {
     expect(
       await screen.findByText("Choose a more specific location."),
     ).toBeTruthy()
-    expect(screen.getByRole("textbox", { name: /Current location/ }).value).toBe(
+    expect(screen.getByRole("combobox", { name: /Current location/ }).value).toBe(
       "New York, NY",
     )
   })

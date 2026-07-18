@@ -298,6 +298,30 @@ def test_creation_failures_return_generic_503_without_internals(client, error):
 
 
 @pytest.mark.django_db
+def test_unexpected_creation_failure_is_logged_without_exception_details(
+    client, caplog
+):
+    secret = "Authorization=super-secret-key"
+
+    with (
+        patch(
+            "trips.views.create_trip",
+            side_effect=RuntimeError(secret),
+        ),
+        caplog.at_level("ERROR", logger="trips.views"),
+    ):
+        response = client.post(
+            "/api/trips/",
+            VALID_INPUT,
+            content_type="application/json",
+        )
+
+    assert response.status_code == 503
+    assert "Unexpected trip creation failure (RuntimeError)." in caplog.text
+    assert secret not in caplog.text
+
+
+@pytest.mark.django_db
 def test_detail_get_returns_exact_stored_json_with_every_compute_seam_forbidden(
     client,
 ):

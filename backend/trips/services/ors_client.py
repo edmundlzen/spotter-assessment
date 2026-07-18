@@ -70,13 +70,25 @@ class ORSClient:
         self._session = session if session is not None else requests.Session()
 
     def geocode(self, query: str) -> ResolvedLocation | None:
+        matches = self.search(query, limit=1)
+        return matches[0] if matches else None
+
+    def search(
+        self, query: str, *, limit: int = 5
+    ) -> tuple[ResolvedLocation, ...]:
+        """Return ordered US location suggestions for an entered query."""
+        if not isinstance(query, str) or not query.strip():
+            raise ValueError("query must be a non-empty string")
+        if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 10:
+            raise ValueError("limit must be an integer from 1 to 10")
+
         response = self._request(
             "get",
             _GEOCODE_URL,
             params={
                 "text": query,
                 "boundary.country": "USA",
-                "size": 1,
+                "size": limit,
             },
         )
         payload = self._json(response)
@@ -86,28 +98,35 @@ class ORSClient:
             features = payload["features"]
             if not isinstance(features, list):
                 raise ValueError
-            if not features:
-                return None
-            feature = features[0]
-            label = feature["properties"]["label"]
-            geometry = feature["geometry"]
-            coordinates = geometry["coordinates"]
-            if (
-                not isinstance(label, str)
-                or not label.strip()
-                or geometry["type"] != "Point"
-            ):
-                raise ValueError
-            longitude, latitude = _coordinate(coordinates)
+            locations = []
+            seen = set()
+            for feature in features:
+                label = feature["properties"]["label"]
+                geometry = feature["geometry"]
+                coordinates = geometry["coordinates"]
+                if (
+                    not isinstance(label, str)
+                    or not label.strip()
+                    or geometry["type"] != "Point"
+                ):
+                    raise ValueError
+                longitude, latitude = _coordinate(coordinates)
+                identity = (label.casefold(), longitude, latitude)
+                if identity in seen:
+                    continue
+                seen.add(identity)
+                locations.append(
+                    ResolvedLocation(
+                        original_query=query,
+                        display_label=label,
+                        longitude=longitude,
+                        latitude=latitude,
+                    )
+                )
         except (KeyError, TypeError, ValueError):
             raise _invalid_payload() from None
 
-        return ResolvedLocation(
-            original_query=query,
-            display_label=label,
-            longitude=longitude,
-            latitude=latitude,
-        )
+        return tuple(locations)
 
     def route(
         self, locations: Iterable[ResolvedLocation]

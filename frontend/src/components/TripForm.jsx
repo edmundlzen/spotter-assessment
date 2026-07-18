@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import AltRouteOutlined from "@mui/icons-material/AltRouteOutlined"
 import FlagOutlined from "@mui/icons-material/FlagOutlined"
 import Inventory2Outlined from "@mui/icons-material/Inventory2Outlined"
@@ -6,6 +6,7 @@ import LocationOnOutlined from "@mui/icons-material/LocationOnOutlined"
 import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined"
 import {
   Alert,
+  Autocomplete,
   Box,
   Button,
   Card,
@@ -17,6 +18,8 @@ import {
   TextField,
   Typography,
 } from "@mui/material"
+
+const SEARCH_DELAY_MS = 350
 
 const SAMPLE = {
   current_location: "New York, NY",
@@ -75,12 +78,155 @@ function validate(values) {
   return errors
 }
 
+function LocationField({
+  busy,
+  error,
+  field,
+  onSearchLocations,
+  onUpdate,
+  value,
+}) {
+  const [options, setOptions] = useState([])
+  const [loading, setLoading] = useState(false)
+  const [searched, setSearched] = useState(false)
+  const [searchUnavailable, setSearchUnavailable] = useState(false)
+  const Icon = field.icon
+  const query = value.trim()
+
+  useEffect(() => {
+    if (!onSearchLocations || query.length < 3) {
+      setOptions([])
+      setLoading(false)
+      setSearched(false)
+      setSearchUnavailable(false)
+      return undefined
+    }
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(async () => {
+      setLoading(true)
+      setSearched(false)
+      setSearchUnavailable(false)
+      try {
+        const results = await onSearchLocations(query, controller.signal)
+        setOptions(results)
+        setSearched(true)
+      } catch (searchError) {
+        if (searchError?.name !== "AbortError") {
+          setOptions([])
+          setSearchUnavailable(true)
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false)
+      }
+    }, SEARCH_DELAY_MS)
+
+    return () => {
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [onSearchLocations, query])
+
+  const guidance = searchUnavailable
+    ? "Search is temporarily unavailable. You can still type the address."
+    : "Start typing to search U.S. cities and addresses."
+
+  return (
+    <Autocomplete
+      autoComplete
+      disabled={busy}
+      filterOptions={(available) => available}
+      freeSolo
+      getOptionKey={(option) =>
+        `${option.label}-${option.coordinate.join(",")}`
+      }
+      getOptionLabel={(option) =>
+        typeof option === "string" ? option : option.label
+      }
+      includeInputInList
+      inputValue={value}
+      loading={loading}
+      loadingText="Searching locations…"
+      noOptionsText={
+        searched
+          ? "No matches found. You can keep the address you typed."
+          : "Type at least 3 characters to search."
+      }
+      onChange={(_, option) => {
+        if (option) {
+          onUpdate(
+            field.name,
+            typeof option === "string" ? option : option.label,
+          )
+        }
+      }}
+      onInputChange={(_, nextValue, reason) => {
+        if (reason !== "reset") onUpdate(field.name, nextValue)
+      }}
+      options={options}
+      sx={{ minWidth: 0, width: "100%" }}
+      renderInput={(params) => (
+        <TextField
+          {...params}
+          error={Boolean(error)}
+          helperText={error ?? guidance}
+          label={field.label}
+          name={field.name}
+          placeholder={field.placeholder}
+          slotProps={{
+            htmlInput: {
+              ...params.slotProps.htmlInput,
+              autoComplete: "off",
+              maxLength: 201,
+            },
+            input: {
+              ...params.slotProps.input,
+              endAdornment: (
+                <>
+                  {loading && (
+                    <CircularProgress
+                      aria-label={`Searching ${field.label.toLowerCase()}`}
+                      color="inherit"
+                      size={18}
+                    />
+                  )}
+                  {params.slotProps.input.endAdornment}
+                </>
+              ),
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Icon color="action" fontSize="small" />
+                </InputAdornment>
+              ),
+            },
+            inputLabel: params.slotProps.inputLabel,
+          }}
+        />
+      )}
+      renderOption={(props, option) => (
+        <Box component="li" {...props} key={`${option.label}-${option.coordinate}`}>
+          <LocationOnOutlined
+            color="action"
+            fontSize="small"
+            sx={{ flex: "0 0 auto", mr: 1.25 }}
+          />
+          <Typography component="span" variant="body2">
+            {option.label}
+          </Typography>
+        </Box>
+      )}
+      selectOnFocus
+    />
+  )
+}
+
 export default function TripForm({
   busy,
   error,
   fieldErrors = {},
   initialValues = EMPTY,
   loadingMessage,
+  onSearchLocations,
   onSubmit,
 }) {
   const [values, setValues] = useState(() => ({
@@ -117,6 +263,7 @@ export default function TripForm({
       aria-labelledby="planner-title"
       component="section"
       elevation={3}
+      sx={{ maxWidth: "100%", minWidth: 0, overflow: "hidden", width: "100%" }}
     >
       <CardHeader
         action={
@@ -134,7 +281,7 @@ export default function TripForm({
           </Button>
         }
         subheader={
-          <Typography color="text.secondary">
+          <Typography color="text.secondary" sx={{ overflowWrap: "anywhere" }}>
             Enter the route and hours already used in the current 70-hour
             cycle.
           </Typography>
@@ -159,31 +306,25 @@ export default function TripForm({
         }
       />
 
-      <CardContent sx={{ px: { xs: 2.5, sm: 4 }, pb: { xs: 3, sm: 4 } }}>
-        <Box component="form" noValidate onSubmit={submit}>
-          <Stack spacing={2.5}>
+      <CardContent
+        sx={{ minWidth: 0, px: { xs: 2.5, sm: 4 }, pb: { xs: 3, sm: 4 } }}
+      >
+        <Box
+          component="form"
+          noValidate
+          onSubmit={submit}
+          sx={{ minWidth: 0, width: "100%" }}
+        >
+          <Stack spacing={2.5} sx={{ minWidth: 0 }}>
             {FIELDS.map((field) => {
-              const Icon = field.icon
               return (
-                <TextField
-                  disabled={busy}
-                  error={Boolean(errors[field.name])}
-                  helperText={errors[field.name] ?? " "}
+                <LocationField
+                  busy={busy}
+                  error={errors[field.name]}
+                  field={field}
                   key={field.name}
-                  label={field.label}
-                  name={field.name}
-                  onChange={(event) => update(field.name, event.target.value)}
-                  placeholder={field.placeholder}
-                  slotProps={{
-                    htmlInput: { maxLength: 201 },
-                    input: {
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <Icon color="action" fontSize="small" />
-                        </InputAdornment>
-                      ),
-                    },
-                  }}
+                  onSearchLocations={onSearchLocations}
+                  onUpdate={update}
                   value={values[field.name]}
                 />
               )

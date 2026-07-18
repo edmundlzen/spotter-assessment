@@ -7,6 +7,7 @@ from rest_framework.exceptions import APIException
 
 
 LOCATION_MAX_LENGTH = 200
+LOCATION_SEARCH_MIN_LENGTH = 3
 
 
 class ProviderUnavailable(APIException):
@@ -50,6 +51,17 @@ class TripCreateSerializer(serializers.Serializer):
         allow_blank=False,
     )
     cycle_hours_used = FiniteCycleHoursField(min_value=0, max_value=70)
+
+
+class LocationSearchQuerySerializer(serializers.Serializer):
+    """Bound public autocomplete input before any provider request."""
+
+    q = serializers.CharField(
+        min_length=LOCATION_SEARCH_MIN_LENGTH,
+        max_length=LOCATION_MAX_LENGTH,
+        trim_whitespace=True,
+        allow_blank=False,
+    )
 
 
 class TripSummarySerializer(serializers.Serializer):

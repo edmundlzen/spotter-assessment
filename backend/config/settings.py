@@ -127,6 +127,10 @@ INSTALLED_APPS = [
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [],
+    "DEFAULT_THROTTLE_RATES": {
+        "location_search": "60/minute",
+        "trip_create": "30/hour",
+    },
     "UNAUTHENTICATED_USER": None,
 }
 
