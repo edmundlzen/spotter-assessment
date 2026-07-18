@@ -64,7 +64,7 @@ def create_trip(validated, *, client=None, clock=None):
             category="provider",
         ) from None
 
-    legs = _engine_legs(route)
+    legs, leg_duration_minutes = _normalize_route_legs(route)
     departure = datetime.combine(clock().date(), time(hour=8))
     schedule = simulate(
         legs,
@@ -85,6 +85,7 @@ def create_trip(validated, *, client=None, clock=None):
         resolved_stops=resolved_stops,
         log_days=log_days,
         departure=departure,
+        leg_duration_minutes=leg_duration_minutes,
     )
 
     with transaction.atomic():
@@ -97,27 +98,36 @@ def create_trip(validated, *, client=None, clock=None):
     return trip
 
 
-def _engine_legs(route):
+def _normalize_route_legs(route):
     if len(route.legs) != 2:
         raise ValueError("route must contain exactly two legs")
     legs = []
+    leg_duration_minutes = []
     for route_leg in route.legs:
-        distance_miles = route_leg.distance_meters / METERS_PER_MILE
-        duration_hours = route_leg.duration_seconds / 3600
         if (
-            not math.isfinite(distance_miles)
-            or not math.isfinite(duration_hours)
-            or distance_miles < 0
-            or duration_hours <= 0
+            isinstance(route_leg.distance_meters, bool)
+            or not isinstance(route_leg.distance_meters, (int, float))
+            or not math.isfinite(route_leg.distance_meters)
+            or route_leg.distance_meters <= 0
+            or isinstance(route_leg.duration_seconds, bool)
+            or not isinstance(route_leg.duration_seconds, (int, float))
+            or not math.isfinite(route_leg.duration_seconds)
+            or route_leg.duration_seconds <= 0
         ):
             raise ValueError("route leg units must be finite and positive")
+        distance_miles = route_leg.distance_meters / METERS_PER_MILE
+        duration_minutes = max(
+            1,
+            round(route_leg.duration_seconds / 60),
+        )
         legs.append(
             Leg(
                 distance_miles=distance_miles,
-                duration_hours=duration_hours,
+                duration_hours=duration_minutes / 60,
             )
         )
-    return legs
+        leg_duration_minutes.append(duration_minutes)
+    return legs, tuple(leg_duration_minutes)
 
 
 def _local_now():

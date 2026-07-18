@@ -191,8 +191,8 @@ def test_route_posts_exactly_three_lon_lat_points_to_hgv_geojson():
         lambda body: body["features"][0]["properties"]["segments"][0].update(
             duration=-1
         ),
-        lambda body: body["features"][0]["properties"]["segments"][1].update(
-            way_points=[1, 4]
+        lambda body: body["features"][0]["properties"].update(
+            way_points=[1, 2, 4]
         ),
         lambda body: body["features"][0]["geometry"].update(type="Point"),
         lambda body: body["features"][0]["geometry"].update(

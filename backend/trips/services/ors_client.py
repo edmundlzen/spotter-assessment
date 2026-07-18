@@ -181,6 +181,16 @@ def _parse_route(payload: Any) -> ResolvedRoute:
         raw_segments = properties["segments"]
         if not isinstance(raw_segments, list) or len(raw_segments) != 2:
             raise ValueError
+        raw_waypoints = properties["way_points"]
+        if (
+            not isinstance(raw_waypoints, list)
+            or len(raw_waypoints) != 3
+            or any(
+                isinstance(value, bool) or not isinstance(value, int)
+                for value in raw_waypoints
+            )
+        ):
+            raise ValueError
 
         geometry_payload = feature["geometry"]
         if geometry_payload["type"] != "LineString":
@@ -190,7 +200,14 @@ def _parse_route(payload: Any) -> ResolvedRoute:
             raise ValueError
         geometry = tuple(_coordinate(point) for point in raw_coordinates)
 
-        legs = tuple(_parse_leg(segment) for segment in raw_segments)
+        legs = tuple(
+            _parse_leg(
+                segment,
+                start_waypoint_index=raw_waypoints[index],
+                end_waypoint_index=raw_waypoints[index + 1],
+            )
+            for index, segment in enumerate(raw_segments)
+        )
         first, second = legs
         if (
             first.start_waypoint_index != 0
@@ -230,21 +247,19 @@ def _parse_route(payload: Any) -> ResolvedRoute:
     )
 
 
-def _parse_leg(payload: Any) -> ResolvedRouteLeg:
+def _parse_leg(
+    payload: Any,
+    *,
+    start_waypoint_index: int,
+    end_waypoint_index: int,
+) -> ResolvedRouteLeg:
     if not isinstance(payload, dict):
-        raise ValueError
-    waypoints = payload["way_points"]
-    if (
-        not isinstance(waypoints, list)
-        or len(waypoints) != 2
-        or any(isinstance(value, bool) or not isinstance(value, int) for value in waypoints)
-    ):
         raise ValueError
     return ResolvedRouteLeg(
         distance_meters=_positive_finite(payload["distance"], "distance"),
         duration_seconds=_positive_finite(payload["duration"], "duration"),
-        start_waypoint_index=waypoints[0],
-        end_waypoint_index=waypoints[1],
+        start_waypoint_index=start_waypoint_index,
+        end_waypoint_index=end_waypoint_index,
     )
 
 

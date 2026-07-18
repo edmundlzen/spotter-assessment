@@ -1,4 +1,6 @@
 import json
+import math
+from dataclasses import replace
 from datetime import datetime
 from unittest.mock import Mock
 
@@ -7,9 +9,38 @@ from django.db import connection
 
 from trips.hos_engine.models import Leg
 from trips.models import Trip
-from trips.services.ors_client import ProviderError
+from trips.services.ors_client import ProviderError, ResolvedRouteLeg
 from trips.services.snapshot import build_snapshot
 from trips.services.trip_creation import TripCreationError, create_trip
+
+
+def _route_with_leg_durations(route, *duration_seconds):
+    total_seconds = (
+        sum(duration_seconds)
+        if all(isinstance(value, (int, float)) for value in duration_seconds)
+        else route.total_seconds
+    )
+    legs = tuple(
+        ResolvedRouteLeg(
+            distance_meters=leg.distance_meters,
+            duration_seconds=duration,
+            start_waypoint_index=leg.start_waypoint_index,
+            end_waypoint_index=leg.end_waypoint_index,
+        )
+        for leg, duration in zip(route.legs, duration_seconds)
+    )
+    return replace(
+        route,
+        total_seconds=total_seconds,
+        legs=legs,
+    )
+
+
+def _client_for_route(values, route):
+    client = Mock()
+    client.geocode.side_effect = values["locations"]
+    client.route.return_value = route
+    return client
 
 
 def test_snapshot_is_complete_versioned_json_with_caller_identity(
@@ -151,6 +182,131 @@ def test_snapshot_local_timestamps_never_gain_an_offset(trip_creation_values):
         and timestamp.count("-") == 2
         for timestamp in timestamps
     )
+
+
+@pytest.mark.parametrize(
+    "leg_duration_minutes",
+    [(120,), (120, 0), (120, -1), (120, 1.5), (120, True), [120, 240]],
+)
+def test_snapshot_rejects_invalid_normalized_leg_duration_tuple(
+    leg_duration_minutes, trip_creation_values
+):
+    values = {
+        **trip_creation_values,
+        "leg_duration_minutes": leg_duration_minutes,
+    }
+
+    with pytest.raises(ValueError):
+        build_snapshot(**values)
+
+
+@pytest.mark.django_db
+def test_sub_minute_route_legs_share_one_positive_normalized_duration(
+    monkeypatch, trip_creation_values
+):
+    from trips.services import trip_creation
+
+    values = trip_creation_values
+    route = _route_with_leg_durations(values["route"], 20, 20)
+    real_simulate = trip_creation.simulate
+    real_build_snapshot = trip_creation.build_snapshot
+    captured = {}
+
+    def capture_simulate(legs, *args, **kwargs):
+        captured["engine_legs"] = legs
+        return real_simulate(legs, *args, **kwargs)
+
+    def capture_snapshot(**kwargs):
+        captured["snapshot_minutes"] = kwargs["leg_duration_minutes"]
+        return real_build_snapshot(**kwargs)
+
+    monkeypatch.setattr(trip_creation, "simulate", capture_simulate)
+    monkeypatch.setattr(trip_creation, "build_snapshot", capture_snapshot)
+
+    trip = create_trip(
+        values["validated"],
+        client=_client_for_route(values, route),
+        clock=lambda: datetime(2026, 7, 18),
+    )
+
+    snapshot = trip.result_snapshot
+    assert [leg.duration_hours for leg in captured["engine_legs"]] == [
+        1 / 60,
+        1 / 60,
+    ]
+    assert captured["snapshot_minutes"] == (1, 1)
+    assert sum(
+        segment["duration_minutes"]
+        for segment in snapshot["duty_segments"]
+        if segment["status"] == "driving"
+    ) == 2
+    assert [
+        leg["duration_minutes"] for leg in snapshot["route"]["legs"]
+    ] == [1, 1]
+    assert snapshot["route"]["total_duration_minutes"] == 2
+    assert snapshot["summary"]["total_duration_minutes"] == 2
+    assert trip.total_duration_minutes == 2
+    assert sum(day["total_miles"] for day in snapshot["log_days"]) == pytest.approx(
+        snapshot["route"]["total_distance_miles"]
+    )
+    assert Trip.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_fractional_minute_route_total_is_sum_of_normalized_legs(
+    trip_creation_values,
+):
+    values = trip_creation_values
+    route = _route_with_leg_durations(values["route"], 89, 89)
+
+    trip = create_trip(
+        values["validated"],
+        client=_client_for_route(values, route),
+        clock=lambda: datetime(2026, 7, 18),
+    )
+
+    snapshot = trip.result_snapshot
+    assert round(route.total_seconds / 60) == 3
+    assert [
+        leg["duration_minutes"] for leg in snapshot["route"]["legs"]
+    ] == [1, 1]
+    assert snapshot["route"]["total_duration_minutes"] == 2
+    assert snapshot["summary"]["total_duration_minutes"] == 2
+    assert trip.total_duration_minutes == 2
+    assert sum(
+        segment["duration_minutes"]
+        for segment in snapshot["duty_segments"]
+        if segment["status"] == "driving"
+    ) == 2
+    assert sum(day["total_miles"] for day in snapshot["log_days"]) == pytest.approx(
+        snapshot["route"]["total_distance_miles"]
+    )
+    assert Trip.objects.count() == 1
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "invalid_duration",
+    [0, -1, math.inf, -math.inf, math.nan, True, False, "20", None],
+)
+def test_normalized_leg_duration_rejects_invalid_provider_values(
+    invalid_duration, trip_creation_values
+):
+    values = trip_creation_values
+    route = _route_with_leg_durations(
+        values["route"],
+        invalid_duration,
+        invalid_duration,
+    )
+
+    with pytest.raises(ValueError):
+        create_trip(
+            values["validated"],
+            client=_client_for_route(values, route),
+            clock=lambda: datetime(2026, 7, 18),
+        )
+
+    assert Trip.objects.count() == 0
 
 
 @pytest.mark.django_db(transaction=True)

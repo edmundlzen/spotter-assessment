@@ -119,4 +119,5 @@ def trip_creation_values():
         "resolved_stops": resolved_stops,
         "log_days": split(schedule.segments),
         "departure": departure,
+        "leg_duration_minutes": (120, 240),
     }

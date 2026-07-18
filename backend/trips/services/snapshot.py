@@ -26,6 +26,7 @@ def build_snapshot(
     resolved_stops,
     log_days,
     departure,
+    leg_duration_minutes,
 ):
     """Return a JSON-primitive schema and compact model creation fields."""
     if not isinstance(trip_id, UUID):
@@ -34,6 +35,19 @@ def build_snapshot(
         raise ValueError("exactly three resolved locations are required")
     if len(route.legs) != 2:
         raise ValueError("exactly two route legs are required")
+    if (
+        not isinstance(leg_duration_minutes, tuple)
+        or len(leg_duration_minutes) != len(route.legs)
+        or any(
+            isinstance(minutes, bool)
+            or not isinstance(minutes, int)
+            or minutes <= 0
+            for minutes in leg_duration_minutes
+        )
+    ):
+        raise ValueError(
+            "leg_duration_minutes must contain one positive integer per leg"
+        )
     if len(schedule.stops) != len(resolved_stops):
         raise ValueError("every schedule stop requires one coordinate")
 
@@ -42,7 +56,7 @@ def build_snapshot(
         route.total_meters / METERS_PER_MILE
     )
     route_miles = float(route_miles_decimal)
-    total_duration_minutes = _minutes(route.total_seconds)
+    total_duration_minutes = sum(leg_duration_minutes)
 
     normalized_locations = {
         role: {
@@ -61,9 +75,13 @@ def build_snapshot(
             "distance_miles": float(
                 _miles_decimal(leg.distance_meters / METERS_PER_MILE)
             ),
-            "duration_minutes": _minutes(leg.duration_seconds),
+            "duration_minutes": duration_minutes,
         }
-        for (start, end), leg in zip(_LEG_ENDPOINTS, route.legs)
+        for (start, end), leg, duration_minutes in zip(
+            _LEG_ENDPOINTS,
+            route.legs,
+            leg_duration_minutes,
+        )
     ]
     duty_segments = [
         _normalize_segment(segment) for segment in schedule.segments
@@ -82,7 +100,11 @@ def build_snapshot(
         }
         for stop, coordinate in zip(schedule.stops, resolved_stops)
     ]
-    normalized_log_days = _normalize_log_days(log_days, route.legs)
+    normalized_log_days = _normalize_log_days(
+        log_days,
+        route.legs,
+        leg_duration_minutes,
+    )
 
     summary = {
         "total_distance_miles": route_miles_decimal,
@@ -127,13 +149,13 @@ def build_snapshot(
     return snapshot, summary
 
 
-def _normalize_log_days(log_days, route_legs):
+def _normalize_log_days(log_days, route_legs, leg_duration_minutes):
     leg_remaining = [
         [
-            _minutes(leg.duration_seconds),
+            duration_minutes,
             float(_miles_decimal(leg.distance_meters / METERS_PER_MILE)),
         ]
-        for leg in route_legs
+        for leg, duration_minutes in zip(route_legs, leg_duration_minutes)
     ]
     leg_index = 0
     normalized_days = []
@@ -218,13 +240,6 @@ def _coordinate(value):
     if not -180 <= longitude <= 180 or not -90 <= latitude <= 90:
         raise ValueError("coordinate is outside GeoJSON bounds")
     return [longitude, latitude]
-
-
-def _minutes(seconds):
-    value = _finite_number(seconds, "duration")
-    if value <= 0:
-        raise ValueError("duration must be positive")
-    return round(value / 60)
 
 
 def _miles_decimal(value):
