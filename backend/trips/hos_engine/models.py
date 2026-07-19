@@ -7,9 +7,9 @@ class DutyStatus(Enum):
     """The four FMCSA duty-status rows.
 
     SLEEPER_BERTH is a valid status but is deliberately never emitted by the
-    engine this phase (D-03): both the 10h reset and the 34h restart render
-    on the OFF_DUTY row. Kept in the enum so a driver could be modeled there
-    later without a breaking type change.
+    engine: both the 10h reset and the 34h restart render on the OFF_DUTY row.
+    It remains in the enum so a driver could be modeled there later without a
+    breaking type change.
     """
     OFF_DUTY = "off_duty"
     SLEEPER_BERTH = "sleeper_berth"
@@ -21,11 +21,9 @@ class DutyStatus(Enum):
 class Leg:
     """One leg of the trip: a distance covered over a duration.
 
-    V5 defensive validation (ASVS V5, RESEARCH.md Security Domain): this is
-    a correctness safety net for any caller, not the user-facing form
-    validation Phase 5 will add (INPUT-02) — it exists so a malformed
-    upstream value fails loudly with ValueError instead of silently
-    producing a wrong HOS schedule.
+    Validation here is a correctness safety net for every caller. A malformed
+    upstream value fails loudly with ValueError instead of silently producing
+    an invalid HOS schedule.
     """
     distance_miles: float
     duration_hours: float
@@ -76,6 +74,6 @@ class TripSchedule:
 
 @dataclass(frozen=True)
 class LogDay:
-    """One calendar day's worth of segments (consumed by log_day_builder, plan 01-04)."""
+    """One calendar day's worth of duty segments."""
     date: date
     segments: list[DutySegment]

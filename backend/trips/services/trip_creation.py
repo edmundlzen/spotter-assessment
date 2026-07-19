@@ -115,5 +115,5 @@ def _normalize_route_legs(route):
 
 
 def _local_now():
-    """Return a timezone-naive local wall-clock value for the D-01 date."""
+    """Return a timezone-naive local wall-clock value."""
     return datetime.now()

@@ -41,8 +41,11 @@ class _Simulation:
 
 
     def _emit(self, status: DutyStatus, minutes: int, kind: str | None = None, note: str = "") -> None:
-        """Append one duty segment of ``minutes`` and advance every accumulator the
-        SAME way for every status (Pitfall 4: stops advance the on-duty clock too)."""
+        """Append a duty segment and advance the applicable HOS accumulators.
+
+        On-duty stops consume cycle time even though they do not add driving
+        time.
+        """
         if minutes <= 0:
             return
         seg = DutySegment(status=status, start=self.now, end=self.now + timedelta(minutes=minutes), note=note)
@@ -71,15 +74,15 @@ class _Simulation:
 
 
     def _insert_reset(self) -> None:
-        """10h off-duty reset — restarts drive/window/break, NOT the cycle (HOS-05, D-03)."""
+        """Insert a 10h off-duty reset for drive, window, and break clocks."""
         self._emit(DutyStatus.OFF_DUTY, RESET_MIN, kind="reset")
 
     def _insert_restart(self) -> None:
-        """34h off-duty restart — restores the full 70h cycle (and, being >=10h, the shift too) (HOS-04, D-03)."""
+        """Insert a 34h restart that restores the cycle and shift clocks."""
         self._emit(DutyStatus.OFF_DUTY, RESTART_MIN, kind="restart")
 
     def _insert_break(self) -> None:
-        """Dedicated 30-min off-duty rest break at the 8h mark (HOS-03)."""
+        """Insert a dedicated 30-min off-duty break at the 8h mark."""
         self._emit(DutyStatus.OFF_DUTY, BREAK_DURATION_MIN, kind="break")
 
     def _ensure_cycle_for(self, minutes_needed: int) -> None:
@@ -89,20 +92,22 @@ class _Simulation:
             self._insert_restart()
 
     def emit_on_duty_stop(self, minutes: int, kind: str) -> None:
-        """Pickup/dropoff: a fixed On-Duty-Not-Driving block that consumes the window
-        and the cycle exactly as driving does (HOS-07, Pitfall 4)."""
+        """Emit a pickup/dropoff block that consumes window and cycle time."""
         if minutes <= 0:
             return
         self._ensure_cycle_for(minutes)
         self._emit(DutyStatus.ON_DUTY_NOT_DRIVING, minutes, kind=kind)
 
     def emit_fuel(self) -> None:
-        """A 30-min ODND fuel stop at the current mileage threshold. Being >=30 min it
-        credits the 8h break; when it lands within FUEL_BREAK_COMBINE_WINDOW_MIN of the
-        break point it IS the break (D-04) — no separate break is inserted afterwards."""
+        """Emit a 30-min on-duty fuel stop at the current mileage threshold.
+
+        Because the driver is not driving for at least 30 minutes, the stop
+        satisfies the break requirement. When it falls near the 8h trigger,
+        no separate break is inserted.
+        """
         self._ensure_cycle_for(FUEL_DURATION_MIN)
         combined = self.drive_since_break_min >= (BREAK_TRIGGER_MIN - FUEL_BREAK_COMBINE_WINDOW_MIN)
-        note = "fuel stop doubling as the 30-min break (D-04)" if combined else "fuel stop"
+        note = "fuel stop doubling as the 30-min break" if combined else "fuel stop"
         self._emit(DutyStatus.ON_DUTY_NOT_DRIVING, FUEL_DURATION_MIN, kind="fuel", note=note)
         self.next_fuel_threshold += FUEL_INTERVAL_MILES
 
@@ -170,7 +175,7 @@ def simulate(
     Args:
         legs: ordered iterable of ``Leg`` (distance_miles, duration_hours).
         cycle_hours_used: on-duty hours already used in the current 70h/8-day cycle, in ``[0, 70]``.
-        start_datetime: naive local wall-clock time the driver first comes on duty (D-01/D-02).
+        start_datetime: naive local wall-clock time the driver first comes on duty.
         pickup_hours: On-Duty-Not-Driving hours consumed at pickup (default 1h).
         dropoff_hours: On-Duty-Not-Driving hours consumed after the last leg (default 1h).
         pickup_after_leg: number of leading legs driven before pickup. The
@@ -183,8 +188,6 @@ def simulate(
     Raises:
         ValueError: if ``cycle_hours_used`` is outside ``[0, 70]`` or
             ``pickup_after_leg`` is not an integer in the materialized leg range.
-            This is V5 defensive validation — a correctness safety net,
-            distinct from Phase 5's INPUT-02.
     """
     if not (0 <= cycle_hours_used <= 70):
         raise ValueError(

@@ -1,9 +1,4 @@
-"""Shared deterministic values for trip and HOS service tests.
-
-Leg-constructing fixtures were deferred from plan 01-01 (Leg didn't exist
-yet) and are added here in plan 01-02, now that hos_engine.models exists.
-See 01-01-PLAN.md / 01-02-PLAN.md for the rationale.
-"""
+"""Shared deterministic values for trip and HOS service tests."""
 from datetime import datetime
 import uuid
 
@@ -27,7 +22,7 @@ AVG_SPEED_MPH = 50
 
 @pytest.fixture
 def base_start_datetime():
-    """A fixed, timezone-naive trip start used across tests (naive local wall-clock, per D-01)."""
+    """A fixed, timezone-naive local trip start used across tests."""
     return datetime(2026, 1, 1, 6, 0)
 
 
@@ -44,8 +39,7 @@ def legs_from_miles(total_miles: float, avg_mph: float = AVG_SPEED_MPH) -> Leg:
 def single_short_leg():
     """A Leg under 1000mi with duration_hours=11.
 
-    Isolates the 11h-driving/30-min-break interaction with no fuel stop
-    triggered (GC-1, FMCSA driver's guide p.6).
+    Isolates the 11h-driving/30-min-break interaction with no fuel stop.
     """
     return Leg(distance_miles=550, duration_hours=11)
 
@@ -55,8 +49,7 @@ def synthetic_low_speed_leg():
     """A Leg implying ~5mph — a deliberate test-construction device, NOT a
     realistic engine input. Used to push wall-clock time past the 14h window
     deadline while drive_accum_min and drive_since_break_min both stay well
-    under their own limits, isolating the window gate (GC-2, RESEARCH.md
-    Golden Test Cases / Assumptions Log A2).
+    under their own limits, isolating the window gate.
     """
     return Leg(distance_miles=75, duration_hours=15)
 
@@ -66,7 +59,7 @@ def multiday_legs():
     """Legs totaling more than one 11h driving day at ~AVG_SPEED_MPH.
 
     Forces an overnight 10h reset before all driving can complete in a
-    single day (GC-4, 10-hour off-duty reset).
+    single day.
     """
     return [legs_from_miles(600), legs_from_miles(600)]
 

@@ -30,14 +30,13 @@ class TestDrivingIsLegal:
         assert driving_is_legal(now, window_deadline, drive_accum_min=300, drive_since_break_min=180) is True
 
     def test_driving_is_legal_window_gate(self):
-        """GC-2 rules-level case: window gate is independent of the other two.
+        """The 14h window gate is independent of the other two.
 
         drive_accum_min=300 (5h, well under the 11h limit) and
         drive_since_break_min=180 (3h, well under the 8h break trigger) are
         both slack, yet `now` is one minute past the window deadline — the
         function must still return False, proving the window gate is never
-        extended or bypassed by the other two gates being slack (Pitfall 2,
-        HOS-02).
+        extended or bypassed by the other two gates being slack.
         """
         window_deadline = datetime(2026, 1, 1, 20, 0)
         now = window_deadline + timedelta(minutes=1)

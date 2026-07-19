@@ -25,10 +25,9 @@ def driving_is_legal(
 ) -> bool:
     """True only when all three independent gates are satisfied.
 
-    None of the three gates extends or pauses another (Pitfall 2, HOS-02):
-    a fixed wall-clock window deadline, the 11h driving accumulator, and the
-    8h-since-last-qualifying-break accumulator are each checked on their own
-    terms and AND-ed together.
+    None of the three gates extends or pauses another: the fixed wall-clock
+    deadline, 11h driving accumulator, and 8h-since-last-qualifying-break
+    accumulator are checked independently.
     """
     return (
         now < window_deadline
@@ -41,7 +40,6 @@ def satisfies_break(status: DutyStatus, duration_min: int) -> bool:
     """True iff a single contiguous non-driving block of >= 30 minutes.
 
     FMCSA p.10: "Short, non-consecutive periods cannot be combined to reach
-    30 minutes" — fragments never qualify, only one contiguous block does
-    (HOS-03).
+    30 minutes" — fragments never qualify, only one contiguous block does.
     """
     return status != DutyStatus.DRIVING and duration_min >= BREAK_DURATION_MIN

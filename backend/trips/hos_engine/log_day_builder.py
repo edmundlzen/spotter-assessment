@@ -8,7 +8,7 @@ def split(segments: list[DutySegment]) -> list[LogDay]:
     """Group segments by local date, cutting midnight-crossing segments.
 
     Input datetimes are intentionally treated as timezone-naive local wall
-    clock values (D-01). No timezone conversion occurs in this layer.
+    clock values. No timezone conversion occurs in this layer.
     """
     grouped: dict[date, list[DutySegment]] = {}
 
