@@ -246,6 +246,9 @@ def test_route_posts_exactly_three_lon_lat_points_to_hgv_geojson():
         lambda body: body["features"][0]["geometry"].update(
             coordinates=[[200, 41]]
         ),
+        lambda body: body["features"][0]["geometry"].update(
+            coordinates=[[-87, 41]] * 5
+        ),
     ],
 )
 def test_route_rejects_malformed_shape_units_and_waypoints(mutation):

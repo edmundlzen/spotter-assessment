@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date, datetime
 from decimal import Decimal, ROUND_HALF_UP
-import math
-from uuid import UUID
 
 from trips.hos_engine.models import DutySegment, DutyStatus
 from trips.services.route_geometry import METERS_PER_MILE
@@ -29,29 +26,7 @@ def build_snapshot(
     leg_duration_minutes,
 ):
     """Return the complete JSON-primitive snapshot stored for this trip."""
-    if not isinstance(trip_id, UUID):
-        raise ValueError("trip_id must be a UUID")
-    if len(locations) != 3:
-        raise ValueError("exactly three resolved locations are required")
-    if len(route.legs) != 2:
-        raise ValueError("exactly two route legs are required")
-    if (
-        not isinstance(leg_duration_minutes, tuple)
-        or len(leg_duration_minutes) != len(route.legs)
-        or any(
-            isinstance(minutes, bool)
-            or not isinstance(minutes, int)
-            or minutes <= 0
-            for minutes in leg_duration_minutes
-        )
-    ):
-        raise ValueError(
-            "leg_duration_minutes must contain one positive integer per leg"
-        )
-    if len(schedule.stops) != len(resolved_stops):
-        raise ValueError("every schedule stop requires one coordinate")
-
-    departure_local = _iso_local(departure)
+    departure_local = departure.isoformat(timespec="seconds")
     route_miles_decimal = _miles_decimal(
         route.total_meters / METERS_PER_MILE
     )
@@ -60,11 +35,9 @@ def build_snapshot(
 
     normalized_locations = {
         role: {
-            "query": _text(location.original_query, "location query"),
-            "label": _text(location.display_label, "location label"),
-            "coordinate": _coordinate(
-                (location.longitude, location.latitude)
-            ),
+            "query": location.original_query,
+            "label": location.display_label,
+            "coordinate": [location.longitude, location.latitude],
         }
         for role, location in zip(_LOCATION_ROLES, locations)
     }
@@ -88,15 +61,15 @@ def build_snapshot(
     ]
     stops = [
         {
-            "kind": _text(stop.kind, "stop kind"),
+            "kind": stop.kind,
             "cumulative_miles": float(
                 _miles_decimal(stop.cumulative_miles)
             ),
-            "coordinate": _coordinate(coordinate),
-            "start": _iso_local(stop.segment.start),
-            "end": _iso_local(stop.segment.end),
-            "status": _status(stop.segment.status),
-            "note": _note(stop.segment.note),
+            "coordinate": list(coordinate),
+            "start": stop.segment.start.isoformat(timespec="seconds"),
+            "end": stop.segment.end.isoformat(timespec="seconds"),
+            "status": stop.segment.status.value,
+            "note": stop.segment.note,
         }
         for stop, coordinate in zip(schedule.stops, resolved_stops)
     ]
@@ -120,9 +93,7 @@ def build_snapshot(
             "id": str(trip_id),
             "departure_local": departure_local,
             "departure_assumed": True,
-            "cycle_hours_used": _finite_number(
-                validated["cycle_hours_used"], "cycle_hours_used"
-            ),
+            "cycle_hours_used": float(validated["cycle_hours_used"]),
         },
         "locations": normalized_locations,
         "route": {
@@ -133,7 +104,7 @@ def build_snapshot(
             "geometry": {
                 "type": "LineString",
                 "coordinates": [
-                    _coordinate(coordinate) for coordinate in route.geometry
+                    list(coordinate) for coordinate in route.geometry
                 ],
             },
         },
@@ -157,8 +128,6 @@ def _normalize_log_days(log_days, route_legs, leg_duration_minutes):
     normalized_days = []
 
     for log_day in log_days:
-        if not isinstance(log_day.date, date):
-            raise ValueError("log day date is invalid")
         status_totals = {status.value: 0 for status in DutyStatus}
         day_miles = 0.0
         segments = []
@@ -205,65 +174,16 @@ def _normalize_log_days(log_days, route_legs, leg_duration_minutes):
 
 
 def _normalize_segment(segment: DutySegment):
-    if not isinstance(segment, DutySegment):
-        raise ValueError("duty segment is invalid")
     return {
-        "status": _status(segment.status),
-        "start": _iso_local(segment.start),
-        "end": _iso_local(segment.end),
+        "status": segment.status.value,
+        "start": segment.start.isoformat(timespec="seconds"),
+        "end": segment.end.isoformat(timespec="seconds"),
         "duration_minutes": segment.duration_minutes,
-        "note": _note(segment.note),
+        "note": segment.note,
     }
 
 
-def _status(value):
-    if not isinstance(value, DutyStatus):
-        raise ValueError("duty status is invalid")
-    return value.value
-
-
-def _iso_local(value):
-    if not isinstance(value, datetime) or value.utcoffset() is not None:
-        raise ValueError("timeline datetimes must be timezone-naive")
-    return value.isoformat(timespec="seconds")
-
-
-def _coordinate(value):
-    if not isinstance(value, (tuple, list)) or len(value) != 2:
-        raise ValueError("coordinate must contain longitude and latitude")
-    longitude = _finite_number(value[0], "longitude")
-    latitude = _finite_number(value[1], "latitude")
-    if not -180 <= longitude <= 180 or not -90 <= latitude <= 90:
-        raise ValueError("coordinate is outside GeoJSON bounds")
-    return [longitude, latitude]
-
-
 def _miles_decimal(value):
-    finite = _finite_number(value, "mileage")
-    if finite < 0:
-        raise ValueError("mileage must be non-negative")
-    return Decimal(str(finite)).quantize(
+    return Decimal(str(value)).quantize(
         _MILES_QUANTUM, rounding=ROUND_HALF_UP
     )
-
-
-def _finite_number(value, name):
-    if (
-        isinstance(value, bool)
-        or not isinstance(value, (int, float, Decimal))
-        or not math.isfinite(float(value))
-    ):
-        raise ValueError(f"{name} must be a finite number")
-    return float(value)
-
-
-def _text(value, name):
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"{name} must be nonblank")
-    return value
-
-
-def _note(value):
-    if not isinstance(value, str):
-        raise ValueError("segment note must be text")
-    return value

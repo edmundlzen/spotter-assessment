@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from datetime import datetime, time
-import math
 import uuid
 
 from django.conf import settings
@@ -97,22 +96,9 @@ def create_trip(validated, *, client=None, clock=None):
 
 
 def _normalize_route_legs(route):
-    if len(route.legs) != 2:
-        raise ValueError("route must contain exactly two legs")
     legs = []
     leg_duration_minutes = []
     for route_leg in route.legs:
-        if (
-            isinstance(route_leg.distance_meters, bool)
-            or not isinstance(route_leg.distance_meters, (int, float))
-            or not math.isfinite(route_leg.distance_meters)
-            or route_leg.distance_meters <= 0
-            or isinstance(route_leg.duration_seconds, bool)
-            or not isinstance(route_leg.duration_seconds, (int, float))
-            or not math.isfinite(route_leg.duration_seconds)
-            or route_leg.duration_seconds <= 0
-        ):
-            raise ValueError("route leg units must be finite and positive")
         distance_miles = route_leg.distance_meters / METERS_PER_MILE
         duration_minutes = max(
             1,

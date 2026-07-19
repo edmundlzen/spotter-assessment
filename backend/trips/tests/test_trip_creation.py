@@ -1,5 +1,4 @@
 import json
-import math
 from dataclasses import replace
 from datetime import datetime
 from unittest.mock import Mock
@@ -180,22 +179,6 @@ def test_snapshot_local_timestamps_never_gain_an_offset(trip_creation_values):
     )
 
 
-@pytest.mark.parametrize(
-    "leg_duration_minutes",
-    [(120,), (120, 0), (120, -1), (120, 1.5), (120, True), [120, 240]],
-)
-def test_snapshot_rejects_invalid_normalized_leg_duration_tuple(
-    leg_duration_minutes, trip_creation_values
-):
-    values = {
-        **trip_creation_values,
-        "leg_duration_minutes": leg_duration_minutes,
-    }
-
-    with pytest.raises(ValueError):
-        build_snapshot(**values)
-
-
 @pytest.mark.django_db
 def test_sub_minute_route_legs_share_one_positive_normalized_duration(
     monkeypatch, trip_creation_values
@@ -276,31 +259,6 @@ def test_fractional_minute_route_total_is_sum_of_normalized_legs(
         snapshot["route"]["total_distance_miles"]
     )
     assert Trip.objects.count() == 1
-
-
-@pytest.mark.django_db
-@pytest.mark.parametrize(
-    "invalid_duration",
-    [0, -1, math.inf, -math.inf, math.nan, True, False, "20", None],
-)
-def test_normalized_leg_duration_rejects_invalid_provider_values(
-    invalid_duration, trip_creation_values
-):
-    values = trip_creation_values
-    route = _route_with_leg_durations(
-        values["route"],
-        invalid_duration,
-        invalid_duration,
-    )
-
-    with pytest.raises(ValueError):
-        create_trip(
-            values["validated"],
-            client=_client_for_route(values, route),
-            clock=lambda: datetime(2026, 7, 18),
-        )
-
-    assert Trip.objects.count() == 0
 
 
 @pytest.mark.django_db(transaction=True)

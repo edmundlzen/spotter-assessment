@@ -19,59 +19,16 @@ def resolve_stops(
     stops: Iterable[Stop], route: ResolvedRoute
 ) -> list[tuple[float, float]]:
     """Return one GeoJSON ``(longitude, latitude)`` coordinate per stop."""
-    leg_slices = _validate_route(route)
+    leg_slices = tuple(
+        route.geometry[
+            leg.start_waypoint_index : leg.end_waypoint_index + 1
+        ]
+        for leg in route.legs
+    )
     return [
         _resolve_marker(stop.cumulative_miles, route, leg_slices)
         for stop in stops
     ]
-
-
-def _validate_route(
-    route: ResolvedRoute,
-) -> tuple[tuple[tuple[float, float], ...], ...]:
-    try:
-        if len(route.legs) != 2 or len(route.waypoint_indices) != 3:
-            raise ValueError
-        if not _is_positive_finite(route.total_meters):
-            raise ValueError
-        geometry = tuple(_validated_coordinate(point) for point in route.geometry)
-        if len(geometry) < 3:
-            raise ValueError
-
-        indices = route.waypoint_indices
-        if (
-            any(isinstance(index, bool) or not isinstance(index, int) for index in indices)
-            or indices[0] != 0
-            or indices[-1] != len(geometry) - 1
-            or not indices[0] < indices[1] < indices[2]
-        ):
-            raise ValueError
-
-        slices = []
-        for position, leg in enumerate(route.legs):
-            if (
-                not _is_positive_finite(leg.distance_meters)
-                or leg.start_waypoint_index != indices[position]
-                or leg.end_waypoint_index != indices[position + 1]
-            ):
-                raise ValueError
-            leg_slice = geometry[
-                leg.start_waypoint_index : leg.end_waypoint_index + 1
-            ]
-            if _line_length(leg_slice) <= 0:
-                raise ValueError
-            slices.append(leg_slice)
-
-        if not math.isclose(
-            sum(leg.distance_meters for leg in route.legs),
-            route.total_meters,
-            rel_tol=1e-9,
-            abs_tol=_BOUNDARY_TOLERANCE_METERS,
-        ):
-            raise ValueError
-    except (AttributeError, TypeError, ValueError, IndexError):
-        raise ValueError("route geometry is invalid") from None
-    return tuple(slices)
 
 
 def _resolve_marker(
@@ -79,13 +36,6 @@ def _resolve_marker(
     route: ResolvedRoute,
     leg_slices: tuple[tuple[tuple[float, float], ...], ...],
 ) -> tuple[float, float]:
-    if (
-        isinstance(marker_miles, bool)
-        or not isinstance(marker_miles, (int, float))
-        or not math.isfinite(marker_miles)
-    ):
-        raise ValueError("stop marker must be a finite number")
-
     target_meters = float(marker_miles) * METERS_PER_MILE
     if target_meters < -_BOUNDARY_TOLERANCE_METERS:
         raise ValueError("stop marker is before the route")
@@ -162,30 +112,3 @@ def _haversine(
         * math.sin(delta_lon / 2) ** 2
     )
     return 2 * _EARTH_RADIUS_METERS * math.asin(min(1.0, math.sqrt(haversine)))
-
-
-def _validated_coordinate(value: object) -> tuple[float, float]:
-    if not isinstance(value, (list, tuple)) or len(value) != 2:
-        raise ValueError
-    longitude, latitude = value
-    if (
-        isinstance(longitude, bool)
-        or isinstance(latitude, bool)
-        or not isinstance(longitude, (int, float))
-        or not isinstance(latitude, (int, float))
-        or not math.isfinite(longitude)
-        or not math.isfinite(latitude)
-        or not -180 <= longitude <= 180
-        or not -90 <= latitude <= 90
-    ):
-        raise ValueError
-    return float(longitude), float(latitude)
-
-
-def _is_positive_finite(value: object) -> bool:
-    return (
-        not isinstance(value, bool)
-        and isinstance(value, (int, float))
-        and math.isfinite(value)
-        and value > 0
-    )

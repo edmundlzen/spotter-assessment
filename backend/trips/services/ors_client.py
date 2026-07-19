@@ -234,6 +234,17 @@ def _parse_route(payload: Any) -> ResolvedRoute:
             or second.end_waypoint_index != len(geometry) - 1
             or first.start_waypoint_index >= first.end_waypoint_index
             or second.start_waypoint_index >= second.end_waypoint_index
+            or any(
+                len(
+                    set(
+                        geometry[
+                            leg.start_waypoint_index : leg.end_waypoint_index + 1
+                        ]
+                    )
+                )
+                < 2
+                for leg in legs
+            )
         ):
             raise ValueError
         if not math.isclose(

@@ -209,6 +209,26 @@ describe("trip API client", () => {
     )
   })
 
+  it.each([
+    ["route geometry", (value) => {
+      value.route.geometry.coordinates = null
+    }],
+    ["duty timeline", (value) => {
+      value.duty_segments = []
+    }],
+    ["daily logs", (value) => {
+      value.log_days[0].segments = null
+    }],
+  ])("rejects snapshots missing renderer-safe %s", async (_label, mutate) => {
+    const malformed = structuredClone(snapshot())
+    mutate(malformed)
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(response(malformed))
+
+    await expect(
+      getTrip("", TRIP_ID, new AbortController().signal),
+    ).rejects.toMatchObject({ category: "retrieve" })
+  })
+
   it("keeps backend field errors available to the form", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       response(
