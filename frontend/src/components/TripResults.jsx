@@ -114,7 +114,7 @@ function SummaryCards({ snapshot, balances }) {
   )
 }
 
-function HosBalances({ balances }) {
+export function HosBalances({ balances }) {
   const items = [
     {
       key: "driving",
@@ -128,8 +128,8 @@ function HosBalances({ balances }) {
     },
     {
       key: "cycle",
-      label: "8-day on-duty total",
-      description: "Work hours counted toward the 70-hour limit",
+      label: "Estimated cycle balance",
+      description: "Entered hours used plus planned on-duty time",
     },
   ]
 
@@ -173,7 +173,7 @@ function HosBalances({ balances }) {
         </Box>
         <Box sx={{ minWidth: 0 }}>
           <Typography color="text.primary" fontWeight={700} variant="body2">
-            This plan stays within HOS limits
+            This plan stays within modeled HOS limits
           </Typography>
           <Typography
             color="text.secondary"
@@ -181,7 +181,9 @@ function HosBalances({ balances }) {
             sx={{ mt: 0.125 }}
             variant="caption"
           >
-            Required breaks and rest periods are included.
+            Required breaks and rest periods are included. Cycle availability is
+            estimated from the single entered hours-used value and decremented
+            linearly; it does not reconstruct rolling eight-day history.
           </Typography>
         </Box>
       </Stack>

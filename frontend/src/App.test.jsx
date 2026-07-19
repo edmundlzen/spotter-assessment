@@ -1,15 +1,19 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-vi.mock("./components/TripResults.jsx", () => ({
-  default: ({ snapshot }) => (
-    <main aria-label="Rendered trip">
-      <h1>Trip results</h1>
-      <span>{snapshot.trip.id}</span>
-      <span>{snapshot.summary.total_distance_miles} miles</span>
-    </main>
-  ),
-}))
+vi.mock("./components/TripResults.jsx", async (importOriginal) => {
+  const actual = await importOriginal()
+  return {
+    ...actual,
+    default: ({ snapshot }) => (
+      <main aria-label="Rendered trip">
+        <h1>Trip results</h1>
+        <span>{snapshot.trip.id}</span>
+        <span>{snapshot.summary.total_distance_miles} miles</span>
+      </main>
+    ),
+  }
+})
 
 import App from "./App.jsx"
 import {
@@ -23,6 +27,7 @@ import {
 } from "./utils/trip.js"
 import TripForm from "./components/TripForm.jsx"
 import EldLogSheets from "./components/EldLogSheet.jsx"
+import { HosBalances } from "./components/TripResults.jsx"
 
 const TRIP_ID = "87f2df41-a522-4e9c-8a79-36e728621a0a"
 const INPUT = {
@@ -272,6 +277,24 @@ describe("duration formatting", () => {
         balances[key].limit,
       )
     }
+  })
+})
+
+describe("HOS result disclosure", () => {
+  it("bounds the compliance result and explains the cycle estimate", () => {
+    render(<HosBalances balances={calculateHosBalances(snapshot())} />)
+
+    expect(
+      screen.getByText("This plan stays within modeled HOS limits"),
+    ).toBeTruthy()
+    expect(screen.getByText("Estimated cycle balance")).toBeTruthy()
+    expect(
+      screen.getByText(
+        /Cycle availability is estimated from the single entered hours-used value and decremented linearly; it does not reconstruct rolling eight-day history\./,
+      ),
+    ).toBeTruthy()
+    expect(screen.queryByText("8-day on-duty total")).toBeNull()
+    expect(screen.queryByText("This plan stays within HOS limits")).toBeNull()
   })
 })
 
