@@ -13,10 +13,6 @@ import {
   Container,
   Divider,
   LinearProgress,
-  List,
-  ListItem,
-  ListItemAvatar,
-  ListItemText,
   Paper,
   Stack,
   Typography,
@@ -173,7 +169,7 @@ export function HosBalances({ balances }) {
         </Box>
         <Box sx={{ minWidth: 0 }}>
           <Typography color="text.primary" fontWeight={700} variant="body2">
-            This plan stays within modeled HOS limits
+            This plan stays within HOS limits
           </Typography>
           <Typography
             color="text.secondary"
@@ -181,9 +177,8 @@ export function HosBalances({ balances }) {
             sx={{ mt: 0.125 }}
             variant="caption"
           >
-            Required breaks and rest periods are included. Cycle availability is
-            estimated from the single entered hours-used value and decremented
-            linearly; it does not reconstruct rolling eight-day history.
+            Required breaks and rests are included. Cycle balance is estimated
+            from the entered hours, not a full 8-day history.
           </Typography>
         </Box>
       </Stack>
@@ -260,10 +255,128 @@ export function HosBalances({ balances }) {
   )
 }
 
+const ON_DUTY_STATUSES = new Set(["driving", "on_duty_not_driving"])
+
+function groupSegmentsByDay(segments) {
+  const days = []
+  const byKey = new Map()
+  segments.forEach((segment, order) => {
+    const key = segment.start.slice(0, 10)
+    let day = byKey.get(key)
+    if (!day) {
+      day = { date: key, rows: [] }
+      byKey.set(key, day)
+      days.push(day)
+    }
+    day.rows.push({ segment, order })
+  })
+  return days
+}
+
+function DutySegmentRow({ isFirst, isLast, segment, stop }) {
+  const meta = STATUS_META[segment.status]
+  const title = stop ? stopLabel(stop.kind) : meta.label
+  const details = [
+    stop ? `mile ${formatMiles(stop.cumulative_miles, 0)}` : null,
+    stop?.note || segment.note || null,
+  ].filter(Boolean)
+
+  return (
+    <Box
+      sx={{
+        columnGap: 1.25,
+        display: "grid",
+        gridTemplateColumns: "20px 52px minmax(0, 1fr)",
+        py: 1,
+      }}
+    >
+      <Box sx={{ display: "flex", justifyContent: "center", position: "relative" }}>
+        {!isFirst && (
+          <Box
+            sx={{
+              bgcolor: "divider",
+              height: 10,
+              left: "50%",
+              position: "absolute",
+              top: 0,
+              transform: "translateX(-50%)",
+              width: "2px",
+            }}
+          />
+        )}
+        {!isLast && (
+          <Box
+            sx={{
+              bgcolor: "divider",
+              bottom: 0,
+              left: "50%",
+              position: "absolute",
+              top: 10,
+              transform: "translateX(-50%)",
+              width: "2px",
+            }}
+          />
+        )}
+        <Box
+          sx={{
+            bgcolor: meta.color,
+            borderRadius: "50%",
+            boxShadow: `0 0 0 3px ${meta.soft}`,
+            flex: "0 0 auto",
+            height: 12,
+            mt: "4px",
+            position: "relative",
+            width: 12,
+          }}
+        />
+      </Box>
+
+      <Typography
+        component="time"
+        sx={{
+          color: "text.primary",
+          fontSize: 14,
+          fontVariantNumeric: "tabular-nums",
+          fontWeight: 700,
+          lineHeight: "20px",
+          whiteSpace: "nowrap",
+        }}
+      >
+        {formatClock(segment.start)}
+      </Typography>
+
+      <Box sx={{ minWidth: 0 }}>
+        <Stack
+          direction="row"
+          spacing={1}
+          sx={{ alignItems: "baseline", justifyContent: "space-between" }}
+        >
+          <Typography fontWeight={650} variant="body2">
+            {title}
+          </Typography>
+          <Typography
+            color="text.secondary"
+            sx={{ whiteSpace: "nowrap" }}
+            variant="caption"
+          >
+            {formatDuration(segment.duration_minutes)}
+          </Typography>
+        </Stack>
+        {details.length > 0 && (
+          <Typography color="text.secondary" display="block" variant="caption">
+            {details.join(" · ")}
+          </Typography>
+        )}
+      </Box>
+    </Box>
+  )
+}
+
 function ScheduleTimeline({ snapshot }) {
   const stopsByStart = new Map(
     snapshot.stops.map((stop) => [stop.start, stop]),
   )
+  const days = groupSegmentsByDay(snapshot.duty_segments)
 
   return (
     <Paper
@@ -276,7 +389,8 @@ function ScheduleTimeline({ snapshot }) {
         Duty schedule
       </Typography>
       <Typography color="text.secondary" variant="body2">
-        {snapshot.duty_segments.length} duty-status segments
+        {snapshot.duty_segments.length} segments across {days.length}{" "}
+        {days.length === 1 ? "day" : "days"}
       </Typography>
 
       <Stack
@@ -320,95 +434,66 @@ function ScheduleTimeline({ snapshot }) {
         ))}
       </Stack>
 
-      <List
+      <Box
         aria-label="Trip duty schedule"
-        disablePadding
-        sx={{ maxHeight: { md: 720 }, overflowY: { md: "auto" } }}
+        sx={{ maxHeight: { md: 720 }, overflowY: { md: "auto" }, pr: { md: 0.5 } }}
       >
-        {snapshot.duty_segments.map((segment, index) => {
-          const stop = stopsByStart.get(segment.start)
-          const meta = STATUS_META[segment.status]
-          const title = stop ? stopLabel(stop.kind) : meta.label
-          const details = [
-            `${formatClock(segment.start)}–${formatClock(segment.end)}`,
-            formatDuration(segment.duration_minutes),
-            stop ? `mile ${formatMiles(stop.cumulative_miles, 0)}` : null,
-          ]
-            .filter(Boolean)
-            .join(" · ")
+        {days.map((day, dayIndex) => {
+          const onDutyMinutes = day.rows.reduce(
+            (total, { segment }) =>
+              ON_DUTY_STATUSES.has(segment.status)
+                ? total + segment.duration_minutes
+                : total,
+            0,
+          )
 
           return (
-            <ListItem
-              alignItems="stretch"
-              divider={index < snapshot.duty_segments.length - 1}
-              key={`${segment.start}-${segment.status}-${index}`}
-              sx={{ px: 0, py: 1.5 }}
-            >
-              <ListItemAvatar
+            <Box key={day.date}>
+              <Stack
+                direction="row"
+                spacing={1}
                 sx={{
-                  alignItems: "center",
-                  alignSelf: "stretch",
-                  display: "flex",
-                  minWidth: 34,
+                  alignItems: "baseline",
+                  bgcolor: "background.paper",
+                  borderBottom: "1px solid",
+                  borderColor: "divider",
+                  justifyContent: "space-between",
+                  mb: 0.5,
+                  position: "sticky",
+                  pt: dayIndex === 0 ? 0 : 1.5,
+                  pb: 0.75,
+                  top: 0,
+                  zIndex: 1,
                 }}
               >
-                <Box
-                  sx={{
-                    bgcolor: meta.color,
-                    border: "3px solid",
-                    borderColor: meta.soft,
-                    borderRadius: "50%",
-                    height: 14,
-                    width: 14,
-                  }}
+                <Typography
+                  sx={{ fontWeight: 700, letterSpacing: "0.01em" }}
+                  variant="body2"
+                >
+                  Day {dayIndex + 1}
+                  <Box component="span" sx={{ color: "text.secondary", fontWeight: 500 }}>
+                    {" · "}
+                    {formatDate(day.date, { weekday: "short", short: true, year: false })}
+                  </Box>
+                </Typography>
+                <Typography color="text.secondary" variant="caption">
+                  {formatDuration(onDutyMinutes)} on duty
+                </Typography>
+              </Stack>
+
+              {day.rows.map(({ segment, order }, rowIndex) => (
+                <DutySegmentRow
+                  isFirst={rowIndex === 0}
+                  isLast={rowIndex === day.rows.length - 1}
+                  key={`${segment.start}-${segment.status}-${order}`}
+                  segment={segment}
+                  stop={stopsByStart.get(segment.start)}
                 />
-              </ListItemAvatar>
-              <ListItemText
-                primary={
-                  <Stack
-                    direction="row"
-                    spacing={1}
-                    sx={{
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                    }}
-                  >
-                    <Typography fontWeight={650} variant="body2">
-                      {title}
-                    </Typography>
-                    <Typography color="text.secondary" variant="caption">
-                      {formatDate(segment.start, { short: true })}
-                    </Typography>
-                  </Stack>
-                }
-                secondary={
-                  <>
-                    <Typography
-                      color="text.secondary"
-                      component="span"
-                      display="block"
-                      variant="caption"
-                    >
-                      {details}
-                    </Typography>
-                    {(stop?.note || segment.note) && (
-                      <Typography
-                        color="text.secondary"
-                        component="span"
-                        display="block"
-                        sx={{ mt: 0.25 }}
-                        variant="caption"
-                      >
-                        {stop?.note || segment.note}
-                      </Typography>
-                    )}
-                  </>
-                }
-              />
-            </ListItem>
+              ))}
+            </Box>
           )
         })}
-      </List>
+      </Box>
     </Paper>
   )
 }

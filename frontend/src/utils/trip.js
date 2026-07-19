@@ -82,9 +82,10 @@ export function formatDate(dateValue, options = {}) {
     dateValue.length === 10 ? `${dateValue}T00:00:00Z` : `${dateValue}Z`,
   )
   return new Intl.DateTimeFormat("en-US", {
+    weekday: options.weekday,
     month: options.short ? "short" : "long",
     day: "numeric",
-    year: "numeric",
+    year: options.year === false ? undefined : "numeric",
     timeZone: "UTC",
   }).format(date)
 }

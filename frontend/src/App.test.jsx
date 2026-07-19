@@ -301,16 +301,15 @@ describe("HOS result disclosure", () => {
     render(<HosBalances balances={calculateHosBalances(snapshot())} />)
 
     expect(
-      screen.getByText("This plan stays within modeled HOS limits"),
+      screen.getByText("This plan stays within HOS limits"),
     ).toBeTruthy()
     expect(screen.getByText("Estimated cycle balance")).toBeTruthy()
     expect(
       screen.getByText(
-        /Cycle availability is estimated from the single entered hours-used value and decremented linearly; it does not reconstruct rolling eight-day history\./,
+        /Cycle balance is estimated from the entered hours, not a full 8-day history\./,
       ),
     ).toBeTruthy()
     expect(screen.queryByText("8-day on-duty total")).toBeNull()
-    expect(screen.queryByText("This plan stays within HOS limits")).toBeNull()
   })
 })
 
