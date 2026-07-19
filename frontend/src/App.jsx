@@ -13,7 +13,6 @@ import {
   AppBar,
   Box,
   Button,
-  Chip,
   CircularProgress,
   Container,
   Paper,
@@ -72,11 +71,18 @@ function AppHeader({ onNewTrip, showNewTrip }) {
   return (
     <AppBar
       className="app-header"
-      color="primary"
-      elevation={2}
-      position="static"
+      color="transparent"
+      component="header"
+      elevation={0}
+      position="sticky"
+      sx={{
+        backdropFilter: "blur(14px)",
+        bgcolor: "rgba(255, 255, 255, 0.92)",
+        borderBottom: "1px solid",
+        borderColor: "divider",
+      }}
     >
-      <Toolbar disableGutters>
+      <Toolbar disableGutters sx={{ minHeight: { xs: 64, sm: 72 } }}>
         <Container
           maxWidth="xl"
           sx={{
@@ -89,33 +95,71 @@ function AppHeader({ onNewTrip, showNewTrip }) {
             aria-label="ELD Trip Planner home"
             color="inherit"
             onClick={onNewTrip}
-            startIcon={<LocalShippingOutlined />}
-            sx={{ fontSize: 17, fontWeight: 700 }}
-          >
-            ELD Trip Planner
-          </Button>
-          <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
-            <Chip
-              label="Property carrier · 70/8"
-              size="small"
-              sx={{
-                borderColor: "rgba(255,255,255,0.55)",
-                color: "primary.contrastText",
-                display: { xs: "none", sm: "inline-flex" },
-              }}
-              variant="outlined"
-            />
-            {showNewTrip && (
-              <Button
-                onClick={onNewTrip}
-                startIcon={<AddRoadOutlined />}
-                color="inherit"
-                type="button"
+            startIcon={
+              <Box
+                component="span"
+                sx={{
+                  alignItems: "center",
+                  bgcolor: "primary.main",
+                  borderRadius: 2,
+                  boxShadow: "0 5px 12px rgba(21, 94, 239, 0.2)",
+                  color: "primary.contrastText",
+                  display: "inline-flex",
+                  height: { xs: 36, sm: 40 },
+                  justifyContent: "center",
+                  width: { xs: 36, sm: 40 },
+                }}
               >
-                New trip
-              </Button>
-            )}
-          </Stack>
+                <LocalShippingOutlined fontSize="small" />
+              </Box>
+            }
+            sx={{
+              color: "text.primary",
+              minWidth: 0,
+              p: 0,
+              textAlign: "left",
+              "&:hover": { bgcolor: "transparent" },
+              "& .MuiButton-startIcon": { ml: 0, mr: 1.5 },
+            }}
+          >
+            <Stack component="span" spacing={0}>
+              <Typography
+                component="span"
+                sx={{
+                  fontSize: { xs: 15, sm: 16 },
+                  fontWeight: 750,
+                  letterSpacing: "-0.015em",
+                  lineHeight: 1.25,
+                }}
+              >
+                ELD Trip Planner
+              </Typography>
+              <Typography
+                color="text.secondary"
+                component="span"
+                sx={{
+                  display: { xs: "none", sm: "block" },
+                  fontSize: 12,
+                  fontWeight: 500,
+                  lineHeight: 1.35,
+                }}
+              >
+                Route planning &amp; driver logs
+              </Typography>
+            </Stack>
+          </Button>
+          {showNewTrip && (
+            <Button
+              color="primary"
+              onClick={onNewTrip}
+              size="small"
+              startIcon={<AddRoadOutlined />}
+              type="button"
+              variant="outlined"
+            >
+              New trip
+            </Button>
+          )}
         </Container>
       </Toolbar>
     </AppBar>
@@ -133,10 +177,6 @@ function LoadingView({ message }) {
         <CircularProgress size={38} sx={{ mb: 3 }} />
         <Typography component="h1" gutterBottom variant="h5">
           {message}
-        </Typography>
-        <Typography color="text.secondary">
-          Routing and geocoding can take up to a minute when the server is
-          waking up.
         </Typography>
       </Paper>
     </Container>

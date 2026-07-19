@@ -17,6 +17,10 @@ import {
   getTrip,
   searchLocations,
 } from "./api/trips.js"
+import {
+  calculateHosBalances,
+  formatDurationAsHours,
+} from "./utils/trip.js"
 import TripForm from "./components/TripForm.jsx"
 import EldLogSheets from "./components/EldLogSheet.jsx"
 
@@ -254,6 +258,23 @@ describe("trip API client", () => {
   })
 })
 
+describe("duration formatting", () => {
+  it("keeps long HOS balances in total hours", () => {
+    expect(formatDurationAsHours(1_617)).toBe("26h 57m")
+    expect(formatDurationAsHours(660)).toBe("11h")
+  })
+
+  it("keeps used and remaining time tied to each legal limit", () => {
+    const balances = calculateHosBalances(snapshot())
+
+    for (const key of ["driving", "window", "cycle"]) {
+      expect(balances[key].used + balances[key].remaining).toBe(
+        balances[key].limit,
+      )
+    }
+  })
+})
+
 describe("location autocomplete", () => {
   it("searches after typing and applies the selected suggestion", async () => {
     const onSearchLocations = vi.fn().mockResolvedValue([
@@ -311,6 +332,9 @@ describe("trip planner", () => {
   it("opens as the real trip form without making a request", () => {
     render(<App />)
 
+    expect(screen.getByText("Route planning & driver logs")).toBeTruthy()
+    expect(screen.queryByText(/Property carrier/)).toBeNull()
+    expect(screen.queryByText(/Routing and geocoding/)).toBeNull()
     expect(
       screen.getByRole("heading", { name: "Plan a trip" }),
     ).toBeTruthy()

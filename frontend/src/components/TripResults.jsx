@@ -1,5 +1,6 @@
 import AddRoadOutlined from "@mui/icons-material/AddRoadOutlined"
 import CalendarMonthOutlined from "@mui/icons-material/CalendarMonthOutlined"
+import CheckCircleRounded from "@mui/icons-material/CheckCircleRounded"
 import ContentCopyOutlined from "@mui/icons-material/ContentCopyOutlined"
 import ScheduleOutlined from "@mui/icons-material/ScheduleOutlined"
 import StraightenOutlined from "@mui/icons-material/StraightenOutlined"
@@ -9,7 +10,6 @@ import {
   Avatar,
   Box,
   Button,
-  Chip,
   Container,
   Divider,
   LinearProgress,
@@ -30,6 +30,7 @@ import {
   formatClock,
   formatDate,
   formatDuration,
+  formatDurationAsHours,
   formatMiles,
   stopLabel,
 } from "../utils/trip.js"
@@ -114,6 +115,24 @@ function SummaryCards({ snapshot, balances }) {
 }
 
 function HosBalances({ balances }) {
+  const items = [
+    {
+      key: "driving",
+      label: "Driving this shift",
+      description: "Time behind the wheel since the last 10-hour rest",
+    },
+    {
+      key: "window",
+      label: "Current shift",
+      description: "Total time since this shift began",
+    },
+    {
+      key: "cycle",
+      label: "8-day on-duty total",
+      description: "Work hours counted toward the 70-hour limit",
+    },
+  ]
+
   return (
     <Paper
       aria-labelledby="hos-title"
@@ -121,53 +140,120 @@ function HosBalances({ balances }) {
       elevation={1}
       sx={{ p: 2.5 }}
     >
+      <Typography component="h2" id="hos-title" variant="h6">
+        Driver hours at trip end
+      </Typography>
+
       <Stack
         direction="row"
-        sx={{ alignItems: "center", justifyContent: "space-between", mb: 2.5 }}
+        spacing={1.25}
+        sx={{
+          alignItems: "center",
+          bgcolor: "#f6fef9",
+          border: "1px solid #d1fadf",
+          borderRadius: 2,
+          mt: 2,
+          p: 1.5,
+        }}
       >
-        <Typography component="h2" id="hos-title" variant="h6">
-          Hours of service
-        </Typography>
-        <Chip label="70 / 8" size="small" variant="outlined" />
+        <Box
+          sx={{
+            alignItems: "center",
+            bgcolor: "#dcfae6",
+            borderRadius: "50%",
+            color: "#079455",
+            display: "flex",
+            flex: "0 0 auto",
+            height: 32,
+            justifyContent: "center",
+            width: 32,
+          }}
+        >
+          <CheckCircleRounded sx={{ fontSize: 19 }} />
+        </Box>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography color="text.primary" fontWeight={700} variant="body2">
+            This plan stays within HOS limits
+          </Typography>
+          <Typography
+            color="text.secondary"
+            display="block"
+            sx={{ mt: 0.125 }}
+            variant="caption"
+          >
+            Required breaks and rest periods are included.
+          </Typography>
+        </Box>
       </Stack>
 
-      <Stack spacing={2.5}>
-        {["driving", "window", "cycle"].map((key) => {
+      <Stack spacing={1.5} sx={{ mt: 2 }}>
+        {items.map(({ key, label, description }) => {
           const item = balances[key]
           const usedPercent = Math.min(100, (item.used / item.limit) * 100)
           return (
-            <Box key={key}>
+            <Box
+              key={key}
+              sx={{
+                bgcolor: "background.default",
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 2,
+                p: 1.75,
+              }}
+            >
               <Stack
                 direction="row"
                 spacing={2}
-                sx={{ justifyContent: "space-between" }}
+                sx={{ alignItems: "flex-start", justifyContent: "space-between" }}
               >
-                <Typography fontWeight={600} variant="body2">
-                  {item.label}
-                </Typography>
-                <Typography fontWeight={700} variant="body2">
-                  {formatDuration(item.remaining, { compact: true })}
-                </Typography>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography fontWeight={650} variant="body2">
+                    {label}
+                  </Typography>
+                  <Typography color="text.secondary" variant="caption">
+                    {description}
+                  </Typography>
+                </Box>
+                <Box
+                  component="span"
+                  sx={{
+                    bgcolor: "#ecfdf3",
+                    borderRadius: 999,
+                    color: "#067647",
+                    flexShrink: 0,
+                    fontSize: 12,
+                    fontWeight: 700,
+                    lineHeight: 1,
+                    px: 1.1,
+                    py: 0.7,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {formatDurationAsHours(item.remaining)} left
+                </Box>
               </Stack>
               <LinearProgress
-                aria-label={`${item.label}: ${formatDuration(item.remaining)} remaining`}
-                sx={{ borderRadius: 4, height: 7, my: 0.75 }}
+                aria-label={`${label}: ${formatDurationAsHours(item.used)} used of ${formatDurationAsHours(item.limit)}`}
+                color="primary"
+                sx={{ borderRadius: 4, height: 6, mt: 1.5 }}
                 value={usedPercent}
                 variant="determinate"
               />
-              <Typography color="text.secondary" variant="caption">
-                {formatDuration(item.used)} used
-              </Typography>
+              <Stack
+                direction="row"
+                sx={{ justifyContent: "space-between", mt: 0.75 }}
+              >
+                <Typography color="text.secondary" variant="caption">
+                  {formatDurationAsHours(item.used)} used
+                </Typography>
+                <Typography color="text.secondary" variant="caption">
+                  {formatDurationAsHours(item.limit)} maximum
+                </Typography>
+              </Stack>
             </Box>
           )
         })}
       </Stack>
-
-      <Divider sx={{ my: 2 }} />
-      <Typography color="text.secondary" variant="caption">
-        Final balances after applying qualifying resets and restarts in this
-        plan.
-      </Typography>
     </Paper>
   )
 }
@@ -197,23 +283,38 @@ function ScheduleTimeline({ snapshot }) {
         sx={{ flexWrap: "wrap", gap: 1, my: 2 }}
       >
         {Object.entries(STATUS_META).map(([status, meta]) => (
-          <Chip
-            icon={
-              <Box
-                component="span"
-                sx={{
-                  bgcolor: meta.color,
-                  borderRadius: "50%",
-                  height: 8,
-                  width: 8,
-                }}
-              />
-            }
+          <Box
+            component="span"
             key={status}
-            label={meta.label}
-            size="small"
-            variant="outlined"
-          />
+            sx={{
+              alignItems: "center",
+              bgcolor: "background.paper",
+              border: "1px solid",
+              borderColor: "divider",
+              borderRadius: 999,
+              color: "text.secondary",
+              display: "inline-flex",
+              fontSize: 12,
+              fontWeight: 600,
+              gap: 0.75,
+              lineHeight: 1,
+              px: 1.1,
+              py: 0.75,
+            }}
+          >
+            <Box
+              component="i"
+              sx={{
+                bgcolor: meta.color,
+                borderRadius: "50%",
+                display: "block",
+                flex: "0 0 auto",
+                height: 8,
+                width: 8,
+              }}
+            />
+            {meta.label}
+          </Box>
         ))}
       </Stack>
 
@@ -236,12 +337,19 @@ function ScheduleTimeline({ snapshot }) {
 
           return (
             <ListItem
-              alignItems="flex-start"
+              alignItems="stretch"
               divider={index < snapshot.duty_segments.length - 1}
               key={`${segment.start}-${segment.status}-${index}`}
               sx={{ px: 0, py: 1.5 }}
             >
-              <ListItemAvatar sx={{ minWidth: 34, mt: 0.5 }}>
+              <ListItemAvatar
+                sx={{
+                  alignItems: "center",
+                  alignSelf: "stretch",
+                  display: "flex",
+                  minWidth: 34,
+                }}
+              >
                 <Box
                   sx={{
                     bgcolor: meta.color,

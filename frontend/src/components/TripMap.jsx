@@ -1,7 +1,6 @@
 import { useEffect, useMemo } from "react"
-import LocalShippingOutlined from "@mui/icons-material/LocalShippingOutlined"
 import MapOutlined from "@mui/icons-material/MapOutlined"
-import { Box, Chip, Paper, Stack, Typography } from "@mui/material"
+import { Box, Paper, Stack, Typography } from "@mui/material"
 import L from "leaflet"
 import {
   MapContainer,
@@ -80,7 +79,7 @@ export default function TripMap({ snapshot }) {
     >
       <Stack
         direction="row"
-        sx={{ alignItems: "center", justifyContent: "space-between", mb: 2 }}
+        sx={{ alignItems: "center", mb: 2 }}
       >
         <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
           <MapOutlined color="action" />
@@ -88,12 +87,6 @@ export default function TripMap({ snapshot }) {
             Route map
           </Typography>
         </Stack>
-        <Chip
-          icon={<LocalShippingOutlined />}
-          label="HGV route"
-          size="small"
-          variant="outlined"
-        />
       </Stack>
 
       <Box className="map-frame">

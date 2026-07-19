@@ -61,6 +61,13 @@ export function formatHours(minutes, digits = 1) {
   return `${(minutes / 60).toFixed(digits)} h`
 }
 
+export function formatDurationAsHours(minutes) {
+  const rounded = Math.max(0, Math.round(minutes))
+  const hours = Math.floor(rounded / 60)
+  const mins = rounded % 60
+  return mins ? `${hours}h ${mins}m` : `${hours}h`
+}
+
 export function formatClock(timestamp) {
   const date = new Date(`${timestamp}Z`)
   return new Intl.DateTimeFormat("en-US", {
