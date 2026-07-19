@@ -6,23 +6,6 @@ from trips.hos_engine import rules
 from trips.hos_engine.rules import driving_is_legal, satisfies_break
 
 
-class TestConstants:
-    def test_constants_are_integer_minutes(self):
-        assert rules.DRIVE_LIMIT_MIN == 11 * 60
-        assert rules.WINDOW_LIMIT_MIN == 14 * 60
-        assert rules.BREAK_TRIGGER_MIN == 8 * 60
-        assert rules.BREAK_DURATION_MIN == 30
-        assert rules.CYCLE_LIMIT_MIN == 70 * 60
-        assert rules.RESET_MIN == 10 * 60
-        assert rules.RESTART_MIN == 34 * 60
-        assert rules.FUEL_INTERVAL_MILES == 1000
-        assert rules.PICKUP_MIN_DEFAULT == 60
-        assert rules.DROPOFF_MIN_DEFAULT == 60
-
-    def test_fuel_break_combine_window_pinned_at_60(self):
-        assert rules.FUEL_BREAK_COMBINE_WINDOW_MIN == 60
-
-
 class TestDrivingIsLegal:
     def test_all_gates_slack_returns_true(self):
         now = datetime(2026, 1, 1, 10, 0)

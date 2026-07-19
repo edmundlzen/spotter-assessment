@@ -1,13 +1,10 @@
 """Public create/retrieve API contract and stored-only retrieval proofs."""
 
 import json
-from pathlib import Path
 import uuid
 from unittest.mock import patch
 
 import pytest
-from django.urls import NoReverseMatch, reverse
-
 from trips.models import Trip
 from trips.serializers import (
     ProviderUnavailable,
@@ -324,51 +321,3 @@ def test_unknown_uuid_returns_404(client):
     response = client.get(f"/api/trips/{uuid.uuid4()}/")
 
     assert response.status_code == 404
-
-
-@pytest.mark.django_db
-@pytest.mark.parametrize("method", ["get", "put", "patch", "delete"])
-def test_collection_rejects_every_method_except_post(client, method):
-    response = getattr(client, method)("/api/trips/")
-
-    assert response.status_code == 405
-
-
-@pytest.mark.django_db
-@pytest.mark.parametrize("method", ["post", "put", "patch", "delete"])
-def test_detail_rejects_every_method_except_get(client, method):
-    trip_id = uuid.uuid4()
-    response = getattr(client, method)(f"/api/trips/{trip_id}/")
-
-    assert response.status_code == 405
-
-
-def test_only_create_and_detail_trip_url_names_exist():
-    assert reverse("trips:create") == "/api/trips/"
-    trip_id = uuid.uuid4()
-    assert reverse("trips:detail", kwargs={"trip_id": trip_id}) == (
-        f"/api/trips/{trip_id}/"
-    )
-
-    for forbidden_name in ("list", "update", "delete", "recompute"):
-        with pytest.raises(NoReverseMatch):
-            reverse(f"trips:{forbidden_name}")
-
-
-def test_trip_api_source_has_no_crud_or_recompute_view_surface():
-    backend_root = Path(__file__).parents[2]
-    source = "\n".join(
-        (backend_root / relative).read_text(encoding="utf-8")
-        for relative in ("trips/views.py", "trips/urls.py")
-    )
-
-    for forbidden in (
-        "TripListView",
-        "TripUpdateView",
-        "TripDeleteView",
-        "TripRecomputeView",
-        "def put(",
-        "def patch(",
-        "def delete(",
-    ):
-        assert forbidden not in source

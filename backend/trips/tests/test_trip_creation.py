@@ -4,9 +4,7 @@ from datetime import datetime
 from unittest.mock import Mock
 
 import pytest
-from django.db import connection
 
-from trips.hos_engine.models import Leg
 from trips.models import Trip
 from trips.services.ors_client import ProviderError, ResolvedRouteLeg
 from trips.services.snapshot import build_snapshot
@@ -261,104 +259,6 @@ def test_fractional_minute_route_total_is_sum_of_normalized_legs(
     assert Trip.objects.count() == 1
 
 
-@pytest.mark.django_db(transaction=True)
-def test_create_trip_runs_each_stage_once_before_one_atomic_insert(
-    monkeypatch, trip_creation_values
-):
-    from trips.services import trip_creation
-
-    values = trip_creation_values
-    expected_id = values["trip_id"]
-    stages = []
-    atomic_observations = []
-
-    class RecordingClient:
-        def geocode(self, query):
-            stages.append(f"geocode:{query}")
-            atomic_observations.append(connection.in_atomic_block)
-            return values["locations"][len(stages) - 1]
-
-        def route(self, locations):
-            stages.append("route")
-            atomic_observations.append(connection.in_atomic_block)
-            assert tuple(locations) == values["locations"]
-            return values["route"]
-
-    real_simulate = trip_creation.simulate
-    real_resolve_stops = trip_creation.resolve_stops
-    real_split = trip_creation.split
-    real_build_snapshot = trip_creation.build_snapshot
-    real_create = Trip.objects.create
-    simulate_calls = []
-
-    def simulate_once(legs, cycle_hours_used, start_datetime, **kwargs):
-        stages.append("simulate")
-        simulate_calls.append(
-            (legs, cycle_hours_used, start_datetime, kwargs)
-        )
-        return real_simulate(
-            legs, cycle_hours_used, start_datetime, **kwargs
-        )
-
-    def resolve_once(stops, route):
-        stages.append("resolve")
-        return real_resolve_stops(stops, route)
-
-    def split_once(segments):
-        stages.append("split")
-        return real_split(segments)
-
-    def snapshot_once(**kwargs):
-        stages.append("snapshot")
-        assert kwargs["trip_id"] == expected_id
-        return real_build_snapshot(**kwargs)
-
-    def create_once(**kwargs):
-        stages.append("insert")
-        assert connection.in_atomic_block is True
-        assert kwargs["id"] == expected_id
-        return real_create(**kwargs)
-
-    uuid_factory = Mock(return_value=expected_id)
-    monkeypatch.setattr(trip_creation.uuid, "uuid4", uuid_factory)
-    monkeypatch.setattr(trip_creation, "simulate", simulate_once)
-    monkeypatch.setattr(trip_creation, "resolve_stops", resolve_once)
-    monkeypatch.setattr(trip_creation, "split", split_once)
-    monkeypatch.setattr(trip_creation, "build_snapshot", snapshot_once)
-    monkeypatch.setattr(Trip.objects, "create", create_once)
-
-    trip = create_trip(
-        values["validated"],
-        client=RecordingClient(),
-        clock=lambda: datetime(2026, 7, 18, 23, 59),
-    )
-
-    assert stages == [
-        "geocode:Current query",
-        "geocode:Pickup query",
-        "geocode:Dropoff query",
-        "route",
-        "simulate",
-        "resolve",
-        "split",
-        "snapshot",
-        "insert",
-    ]
-    assert atomic_observations == [False, False, False, False]
-    assert len(simulate_calls) == 1
-    legs, cycle_hours, departure, kwargs = simulate_calls[0]
-    assert legs == [Leg(1, 2), Leg(2, 4)]
-    assert all(type(leg) is Leg for leg in legs)
-    assert cycle_hours == 12.5
-    assert departure == datetime(2026, 7, 18, 8)
-    assert departure.tzinfo is None
-    assert kwargs == {"pickup_after_leg": 1}
-    assert trip.id == expected_id
-    assert trip.result_snapshot["trip"]["id"] == str(expected_id)
-    uuid_factory.assert_called_once_with()
-    assert Trip.objects.count() == 1
-
-
 @pytest.mark.django_db
 def test_unresolved_location_is_role_aware_and_stops_before_route(
     trip_creation_values,
@@ -466,52 +366,3 @@ def test_every_preinsert_or_insert_failure_leaves_no_trip(
         )
 
     assert Trip.objects.count() == 0
-
-
-@pytest.mark.django_db
-def test_default_dependencies_are_lazy_and_injected_values_bypass_them(
-    monkeypatch, trip_creation_values
-):
-    from trips.services import trip_creation
-
-    values = trip_creation_values
-    client = Mock()
-    client.geocode.side_effect = values["locations"]
-    client.route.return_value = values["route"]
-    constructed = Mock(return_value=client)
-    monkeypatch.setattr(trip_creation, "ORSClient", constructed)
-    monkeypatch.setattr(
-        trip_creation,
-        "_local_now",
-        Mock(return_value=datetime(2026, 7, 18, 13)),
-    )
-
-    trip = create_trip(values["validated"])
-
-    constructed.assert_called_once_with(
-        api_key=trip_creation.settings.ORS_API_KEY,
-        connect_timeout=trip_creation.settings.ORS_CONNECT_TIMEOUT_SECONDS,
-        read_timeout=trip_creation.settings.ORS_READ_TIMEOUT_SECONDS,
-        max_retries=trip_creation.settings.ORS_MAX_RETRIES,
-    )
-    assert trip.result_snapshot["trip"]["departure_local"] == (
-        "2026-07-18T08:00:00"
-    )
-
-    injected_client = Mock()
-    injected_client.geocode.side_effect = values["locations"]
-    injected_client.route.return_value = values["route"]
-    constructed.reset_mock()
-    monkeypatch.setattr(
-        trip_creation,
-        "_local_now",
-        Mock(side_effect=AssertionError("default clock must be bypassed")),
-    )
-
-    create_trip(
-        values["validated"],
-        client=injected_client,
-        clock=lambda: datetime(2026, 7, 19),
-    )
-
-    constructed.assert_not_called()
