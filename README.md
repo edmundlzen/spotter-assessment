@@ -179,13 +179,6 @@ After deployment, verify the app in this order:
    It must still return the public health response but must not include an
    `Access-Control-Allow-Origin` header.
 
-Once the final URLs have been recorded above and the verifier is present, rerun
-the portable HTTP/CORS assertions from PowerShell, Bash, or CI with:
-
-```sh
-python scripts/verify_live_deployment.py --readme README.md
-```
-
-This executable check does not replace the browser Network proof. A direct
+These terminal checks do not replace the browser Network proof. A direct
 backend response alone cannot prove that the deployed browser origin is allowed
 to read the response.
