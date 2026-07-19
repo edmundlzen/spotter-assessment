@@ -76,7 +76,7 @@ def create_trip(validated, *, client=None, clock=None):
     log_days = split(schedule.segments)
 
     trip_id = uuid.uuid4()
-    snapshot, summary = build_snapshot(
+    snapshot = build_snapshot(
         trip_id=trip_id,
         validated=validated,
         locations=tuple(locations),
@@ -91,8 +91,6 @@ def create_trip(validated, *, client=None, clock=None):
     with transaction.atomic():
         trip = Trip.objects.create(
             id=trip_id,
-            **summary,
-            departure_assumed=True,
             result_snapshot=snapshot,
         )
     return trip

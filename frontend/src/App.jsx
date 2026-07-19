@@ -300,21 +300,12 @@ export default function App() {
       input,
     })
     try {
-      const created = await runRequest((signal) =>
+      const snapshot = await runRequest((signal) =>
         createTrip(API_BASE_URL, input, signal),
       )
       if (!mounted.current) return
-      window.history.pushState({}, "", `/trips/${created.id}`)
-      setView({
-        name: "loading",
-        message: "Loading route and log sheets…",
-        stage: "retrieve",
-        tripId: created.id,
-      })
-      const snapshot = await runRequest((signal) =>
-        getTrip(API_BASE_URL, created.id, signal),
-      )
-      if (mounted.current) setView({ name: "result", snapshot })
+      window.history.pushState({}, "", `/trips/${snapshot.trip.id}`)
+      setView({ name: "result", snapshot })
     } catch (error) {
       if (!mounted.current) return
       const fields = fieldErrorsFrom(error)

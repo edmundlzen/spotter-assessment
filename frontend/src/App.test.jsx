@@ -174,24 +174,20 @@ function snapshot() {
   }
 }
 
-function createdTrip() {
-  return { id: TRIP_ID, summary: snapshot().summary }
-}
-
 describe("trip API client", () => {
   afterEach(() => vi.restoreAllMocks())
 
-  it("posts the entered trip and retrieves its complete snapshot", async () => {
+  it("accepts complete snapshots from both create and stored retrieval", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(response(createdTrip(), { status: 201 }))
+      .mockResolvedValueOnce(response(snapshot(), { status: 201 }))
       .mockResolvedValueOnce(response(snapshot()))
     const createSignal = new AbortController().signal
     const getSignal = new AbortController().signal
 
     await expect(
       createTrip("https://api.example.test/", INPUT, createSignal),
-    ).resolves.toEqual(createdTrip())
+    ).resolves.toEqual(snapshot())
     await expect(
       getTrip("https://api.example.test/", TRIP_ID, getSignal),
     ).resolves.toEqual(snapshot())
@@ -375,10 +371,8 @@ describe("trip planner", () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it("plans the sample trip, loads the stored result, and creates its share URL", async () => {
-    fetch
-      .mockResolvedValueOnce(response(createdTrip(), { status: 201 }))
-      .mockResolvedValueOnce(response(snapshot()))
+  it("renders the POST result directly and creates its share URL", async () => {
+    fetch.mockResolvedValueOnce(response(snapshot(), { status: 201 }))
     render(<App />)
 
     fireEvent.click(screen.getByRole("button", { name: "Use sample trip" }))
@@ -394,7 +388,9 @@ describe("trip planner", () => {
       await screen.findByRole("heading", { name: "Trip results" }),
     ).toBeTruthy()
     expect(window.location.pathname).toBe(`/trips/${TRIP_ID}`)
-    expect(fetch).toHaveBeenCalledTimes(2)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(fetch.mock.calls[0][0]).toContain("/api/trips/")
+    expect(fetch.mock.calls[0][1].method).toBe("POST")
     expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual(INPUT)
   })
 
@@ -416,6 +412,8 @@ describe("trip planner", () => {
     expect(screen.getByRole("combobox", { name: /Current location/ }).value).toBe(
       "New York, NY",
     )
+    expect(window.location.pathname).toBe("/")
+    expect(fetch).toHaveBeenCalledTimes(1)
   })
 
   it("loads a shareable trip URL directly without creating another trip", async () => {

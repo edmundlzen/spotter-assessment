@@ -28,7 +28,7 @@ def build_snapshot(
     departure,
     leg_duration_minutes,
 ):
-    """Return a JSON-primitive schema and compact model creation fields."""
+    """Return the complete JSON-primitive snapshot stored for this trip."""
     if not isinstance(trip_id, UUID):
         raise ValueError("trip_id must be a UUID")
     if len(locations) != 3:
@@ -107,16 +107,12 @@ def build_snapshot(
     )
 
     summary = {
-        "total_distance_miles": route_miles_decimal,
+        "total_distance_miles": route_miles,
         "total_duration_minutes": total_duration_minutes,
         "leg_count": len(route_legs),
         "stop_count": len(stops),
         "duty_segment_count": len(duty_segments),
         "log_day_count": len(normalized_log_days),
-    }
-    snapshot_summary = {
-        **summary,
-        "total_distance_miles": route_miles,
     }
     snapshot = {
         "schema_version": 1,
@@ -144,9 +140,9 @@ def build_snapshot(
         "stops": stops,
         "duty_segments": duty_segments,
         "log_days": normalized_log_days,
-        "summary": snapshot_summary,
+        "summary": summary,
     }
-    return snapshot, summary
+    return snapshot
 
 
 def _normalize_log_days(log_days, route_legs, leg_duration_minutes):

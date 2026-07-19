@@ -43,6 +43,11 @@ function formatLogTotal(minutes) {
   return `${hours}:${String(mins).padStart(2, "0")}`
 }
 
+function shorten(value, length) {
+  if (!value || value.length <= length) return value
+  return `${value.slice(0, length - 1).trimEnd()}…`
+}
+
 function dateParts(date) {
   const [year, month, day] = date.split("-")
   return { day, month, year: year.slice(-2) }

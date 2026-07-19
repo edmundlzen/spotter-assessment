@@ -1,6 +1,5 @@
 """Public create/retrieve API contract and stored-only retrieval proofs."""
 
-from decimal import Decimal
 import json
 from pathlib import Path
 import uuid
@@ -14,7 +13,6 @@ from trips.serializers import (
     ProviderUnavailable,
     TripCreateSerializer,
     TripDetailSerializer,
-    TripSummarySerializer,
 )
 from trips.services.trip_creation import TripCreationError
 
@@ -88,33 +86,6 @@ def test_cycle_hours_validation_rejects_out_of_range_nonfinite_and_boolean(value
 
 
 @pytest.mark.django_db
-def test_summary_serializer_returns_stable_compact_persisted_facts():
-    trip_id = uuid.uuid4()
-    trip = Trip.objects.create(
-        id=trip_id,
-        total_distance_miles=Decimal("123.456"),
-        total_duration_minutes=789,
-        leg_count=2,
-        stop_count=3,
-        duty_segment_count=4,
-        log_day_count=5,
-        result_snapshot={"trip": {"id": str(trip_id)}},
-    )
-
-    assert TripSummarySerializer(trip).data == {
-        "id": str(trip_id),
-        "summary": {
-            "total_distance_miles": 123.456,
-            "total_duration_minutes": 789,
-            "leg_count": 2,
-            "stop_count": 3,
-            "duty_segment_count": 4,
-            "log_day_count": 5,
-        },
-    }
-
-
-@pytest.mark.django_db
 def test_detail_serializer_returns_only_the_complete_stored_snapshot():
     trip_id = uuid.uuid4()
     sentinel = {
@@ -124,12 +95,6 @@ def test_detail_serializer_returns_only_the_complete_stored_snapshot():
     }
     trip = Trip.objects.create(
         id=trip_id,
-        total_distance_miles=Decimal("1.000"),
-        total_duration_minutes=1,
-        leg_count=2,
-        stop_count=0,
-        duty_segment_count=1,
-        log_day_count=1,
         result_snapshot=sentinel,
     )
 
@@ -182,7 +147,7 @@ def test_invalid_post_is_field_keyed_and_stops_before_creation(client, field, va
 
 
 @pytest.mark.django_db
-def test_post_creates_once_and_returns_matching_persisted_identity(client):
+def test_post_creates_once_and_returns_complete_persisted_snapshot(client):
     trip_id = uuid.uuid4()
     snapshot = {
         "schema_version": 1,
@@ -199,12 +164,6 @@ def test_post_creates_once_and_returns_matching_persisted_identity(client):
         }
         return Trip.objects.create(
             id=trip_id,
-            total_distance_miles=Decimal("123.456"),
-            total_duration_minutes=789,
-            leg_count=2,
-            stop_count=3,
-            duty_segment_count=4,
-            log_day_count=5,
             result_snapshot=snapshot,
         )
 
@@ -216,17 +175,7 @@ def test_post_creates_once_and_returns_matching_persisted_identity(client):
         )
 
     assert response.status_code == 201
-    assert response.json() == {
-        "id": str(trip_id),
-        "summary": {
-            "total_distance_miles": 123.456,
-            "total_duration_minutes": 789,
-            "leg_count": 2,
-            "stop_count": 3,
-            "duty_segment_count": 4,
-            "log_day_count": 5,
-        },
-    }
+    assert response.json() == snapshot
     assert Trip.objects.get().pk == trip_id
     assert client.get(f"/api/trips/{trip_id}/").json()["trip"]["id"] == str(
         trip_id
@@ -336,12 +285,6 @@ def test_detail_get_returns_exact_stored_json_with_every_compute_seam_forbidden(
     }
     Trip.objects.create(
         id=trip_id,
-        total_distance_miles=Decimal("1.000"),
-        total_duration_minutes=1,
-        leg_count=2,
-        stop_count=0,
-        duty_segment_count=1,
-        log_day_count=1,
         result_snapshot=sentinel,
     )
     forbidden = AssertionError("stored GET attempted recomputation")

@@ -64,23 +64,6 @@ class LocationSearchQuerySerializer(serializers.Serializer):
     )
 
 
-class TripSummarySerializer(serializers.Serializer):
-    """Return only the compact facts persisted on the Trip row."""
-
-    def to_representation(self, instance):
-        return {
-            "id": str(instance.id),
-            "summary": {
-                "total_distance_miles": float(instance.total_distance_miles),
-                "total_duration_minutes": instance.total_duration_minutes,
-                "leg_count": instance.leg_count,
-                "stop_count": instance.stop_count,
-                "duty_segment_count": instance.duty_segment_count,
-                "log_day_count": instance.log_day_count,
-            },
-        }
-
-
 class TripDetailSerializer(serializers.Serializer):
     """Return the complete stored result without deriving any new values."""
 

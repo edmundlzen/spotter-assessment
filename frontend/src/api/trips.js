@@ -238,11 +238,8 @@ export async function createTrip(baseUrl, input, signal) {
     })
     const payload = await readJson(response, "create")
 
-    if (
-      !isObject(payload) ||
-      !UUID_PATTERN.test(payload.id) ||
-      !isValidSummary(payload.summary)
-    ) {
+    const tripId = payload?.trip?.id
+    if (!UUID_PATTERN.test(tripId) || !isCompleteSnapshot(payload, tripId)) {
       throw new TripApiError("create")
     }
 

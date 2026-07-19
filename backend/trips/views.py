@@ -17,7 +17,6 @@ from trips.serializers import (
     ProviderUnavailable,
     TripCreateSerializer,
     TripDetailSerializer,
-    TripSummarySerializer,
 )
 from trips.services.ors_client import ORSClient, ProviderError
 from trips.services.trip_creation import TripCreationError, create_trip
@@ -105,7 +104,7 @@ class TripCreateView(APIView):
             raise ProviderUnavailable() from None
 
         return Response(
-            TripSummarySerializer(trip).data,
+            TripDetailSerializer(trip).data,
             status=status.HTTP_201_CREATED,
         )
 

@@ -48,7 +48,7 @@ def test_snapshot_is_complete_versioned_json_with_caller_identity(
 ):
     values = trip_creation_values
 
-    snapshot, summary = build_snapshot(**values)
+    snapshot = build_snapshot(**values)
 
     assert json.loads(json.dumps(snapshot)) == snapshot
     assert snapshot["schema_version"] == 1
@@ -145,22 +145,18 @@ def test_snapshot_is_complete_versioned_json_with_caller_identity(
     assert sum(day["total_miles"] for day in snapshot["log_days"]) == 3.0
 
     expected_summary = {
-        "total_distance_miles": summary["total_distance_miles"],
+        "total_distance_miles": 3.0,
         "total_duration_minutes": 360,
         "leg_count": 2,
         "stop_count": len(snapshot["stops"]),
         "duty_segment_count": len(snapshot["duty_segments"]),
         "log_day_count": len(snapshot["log_days"]),
     }
-    assert summary == expected_summary
-    assert snapshot["summary"] == {
-        **expected_summary,
-        "total_distance_miles": 3.0,
-    }
+    assert snapshot["summary"] == expected_summary
 
 
 def test_snapshot_local_timestamps_never_gain_an_offset(trip_creation_values):
-    snapshot, _ = build_snapshot(**trip_creation_values)
+    snapshot = build_snapshot(**trip_creation_values)
 
     timestamps = [
         snapshot["trip"]["departure_local"],
@@ -245,7 +241,6 @@ def test_sub_minute_route_legs_share_one_positive_normalized_duration(
     ] == [1, 1]
     assert snapshot["route"]["total_duration_minutes"] == 2
     assert snapshot["summary"]["total_duration_minutes"] == 2
-    assert trip.total_duration_minutes == 2
     assert sum(day["total_miles"] for day in snapshot["log_days"]) == pytest.approx(
         snapshot["route"]["total_distance_miles"]
     )
@@ -272,7 +267,6 @@ def test_fractional_minute_route_total_is_sum_of_normalized_legs(
     ] == [1, 1]
     assert snapshot["route"]["total_duration_minutes"] == 2
     assert snapshot["summary"]["total_duration_minutes"] == 2
-    assert trip.total_duration_minutes == 2
     assert sum(
         segment["duration_minutes"]
         for segment in snapshot["duty_segments"]
