@@ -12,7 +12,11 @@ from trips.hos_engine.engine import simulate
 from trips.hos_engine.log_day_builder import split
 from trips.hos_engine.models import Leg
 from trips.models import Trip
-from trips.services.ors_client import ORSClient, ProviderError
+from trips.services.ors_client import (
+    ORSClient,
+    ProviderError,
+    RouteUnavailableError,
+)
 from trips.services.route_geometry import METERS_PER_MILE, resolve_stops
 from trips.services.snapshot import build_snapshot
 
@@ -57,6 +61,11 @@ def create_trip(validated, *, client=None, clock=None):
                 )
             locations.append(location)
         route = client.route(locations)
+    except RouteUnavailableError:
+        raise TripCreationError(
+            "The entered locations could not be routed.",
+            category="unroutable",
+        ) from None
     except ProviderError:
         raise TripCreationError(
             "The routing service is unavailable.",

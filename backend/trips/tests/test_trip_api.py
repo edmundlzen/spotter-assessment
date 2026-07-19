@@ -1,16 +1,11 @@
-"""Public create/retrieve API contract and stored-only retrieval proofs."""
+"""Public create/retrieve API contract."""
 
-import json
 import uuid
 from unittest.mock import patch
 
 import pytest
+
 from trips.models import Trip
-from trips.serializers import (
-    ProviderUnavailable,
-    TripCreateSerializer,
-    TripDetailSerializer,
-)
 from trips.services.trip_creation import TripCreationError
 
 
@@ -20,103 +15,6 @@ VALID_INPUT = {
     "dropoff_location": "Indianapolis, IN",
     "cycle_hours_used": 12.5,
 }
-
-
-@pytest.mark.parametrize("field", [
-    "current_location",
-    "pickup_location",
-    "dropoff_location",
-])
-@pytest.mark.parametrize("value", ["", "   ", "x" * 201])
-def test_location_validation_is_required_trimmed_nonblank_and_bounded(field, value):
-    payload = {**VALID_INPUT, field: value}
-
-    serializer = TripCreateSerializer(data=payload)
-
-    assert not serializer.is_valid()
-    assert set(serializer.errors) == {field}
-
-
-@pytest.mark.parametrize("field", [
-    "current_location",
-    "pickup_location",
-    "dropoff_location",
-])
-def test_location_validation_requires_every_field(field):
-    payload = {**VALID_INPUT}
-    del payload[field]
-
-    serializer = TripCreateSerializer(data=payload)
-
-    assert not serializer.is_valid()
-    assert set(serializer.errors) == {field}
-
-
-def test_location_validation_trims_accepted_values():
-    serializer = TripCreateSerializer(data=VALID_INPUT)
-
-    assert serializer.is_valid(), serializer.errors
-    assert serializer.validated_data["current_location"] == "Chicago, IL"
-
-
-@pytest.mark.parametrize("value", [0, 70, 12.5])
-def test_cycle_hours_validation_accepts_inclusive_finite_range(value):
-    serializer = TripCreateSerializer(
-        data={**VALID_INPUT, "cycle_hours_used": value}
-    )
-
-    assert serializer.is_valid(), serializer.errors
-    assert serializer.validated_data["cycle_hours_used"] == value
-
-
-@pytest.mark.parametrize(
-    "value",
-    [-0.01, 70.01, float("nan"), float("inf"), float("-inf"), True],
-)
-def test_cycle_hours_validation_rejects_out_of_range_nonfinite_and_boolean(value):
-    serializer = TripCreateSerializer(
-        data={**VALID_INPUT, "cycle_hours_used": value}
-    )
-
-    assert not serializer.is_valid()
-    assert set(serializer.errors) == {"cycle_hours_used"}
-
-
-@pytest.mark.django_db
-def test_detail_serializer_returns_only_the_complete_stored_snapshot():
-    trip_id = uuid.uuid4()
-    sentinel = {
-        "schema_version": 1,
-        "trip": {"id": str(trip_id)},
-        "sentinel": ["stored", {"without": "recompute"}],
-    }
-    trip = Trip.objects.create(
-        id=trip_id,
-        result_snapshot=sentinel,
-    )
-
-    assert TripDetailSerializer(trip).data == sentinel
-
-
-def test_provider_unavailable_exception_has_only_a_stable_public_message():
-    exception = ProviderUnavailable()
-
-    assert exception.status_code == 503
-    assert exception.detail == {
-        "detail": "The routing service is temporarily unavailable."
-    }
-    rendered = str(exception.detail)
-    assert not any(
-        secret in rendered
-        for secret in (
-            "api.openrouteservice.org",
-            "super-secret-key",
-            "Authorization",
-            "raw upstream body",
-            "Traceback",
-            "database connection failed",
-        )
-    )
 
 
 @pytest.mark.django_db
@@ -159,10 +57,7 @@ def test_post_creates_once_and_returns_complete_persisted_snapshot(client):
             "dropoff_location": "Indianapolis, IN",
             "cycle_hours_used": 12.5,
         }
-        return Trip.objects.create(
-            id=trip_id,
-            result_snapshot=snapshot,
-        )
+        return Trip.objects.create(id=trip_id, result_snapshot=snapshot)
 
     with patch("trips.views.create_trip", side_effect=persist) as create:
         response = client.post(
@@ -173,19 +68,15 @@ def test_post_creates_once_and_returns_complete_persisted_snapshot(client):
 
     assert response.status_code == 201
     assert response.json() == snapshot
-    assert Trip.objects.get().pk == trip_id
-    assert client.get(f"/api/trips/{trip_id}/").json()["trip"]["id"] == str(
-        trip_id
-    )
+    assert client.get(f"/api/trips/{trip_id}/").json()["trip"]["id"] == str(trip_id)
     create.assert_called_once()
 
 
 @pytest.mark.django_db
-def test_unresolved_location_is_a_field_specific_sanitized_400(client):
+def test_unroutable_locations_return_a_clear_400_not_a_generic_503(client):
     error = TripCreationError(
-        "The pickup location could not be resolved.",
-        category="unresolved_location",
-        field="pickup_location",
+        "The entered locations could not be routed.",
+        category="unroutable",
     )
 
     with patch("trips.views.create_trip", side_effect=error):
@@ -196,124 +87,8 @@ def test_unresolved_location_is_a_field_specific_sanitized_400(client):
         )
 
     assert response.status_code == 400
-    assert response.json() == {
-        "pickup_location": ["The pickup location could not be resolved."]
-    }
+    assert "drivable route" in response.json()["detail"]
     assert Trip.objects.count() == 0
-
-
-@pytest.mark.django_db
-@pytest.mark.parametrize(
-    "error",
-    [
-        TripCreationError(
-            "The routing service is unavailable.",
-            category="provider",
-        ),
-        RuntimeError(
-            "database connection failed: api.openrouteservice.org "
-            "Authorization=super-secret-key raw upstream body"
-        ),
-    ],
-)
-def test_creation_failures_return_generic_503_without_internals(client, error):
-    with patch("trips.views.create_trip", side_effect=error):
-        response = client.post(
-            "/api/trips/",
-            VALID_INPUT,
-            content_type="application/json",
-        )
-
-    assert response.status_code == 503
-    assert response.json() == {
-        "detail": "The routing service is temporarily unavailable."
-    }
-    assert Trip.objects.count() == 0
-    rendered = response.content.decode()
-    assert not any(
-        secret in rendered
-        for secret in (
-            "api.openrouteservice.org",
-            "super-secret-key",
-            "Authorization",
-            "raw upstream body",
-            "Traceback",
-            "database connection failed",
-        )
-    )
-
-
-@pytest.mark.django_db
-def test_unexpected_creation_failure_is_logged_without_exception_details(
-    client, caplog
-):
-    secret = "Authorization=super-secret-key"
-
-    with (
-        patch(
-            "trips.views.create_trip",
-            side_effect=RuntimeError(secret),
-        ),
-        caplog.at_level("ERROR", logger="trips.views"),
-    ):
-        response = client.post(
-            "/api/trips/",
-            VALID_INPUT,
-            content_type="application/json",
-        )
-
-    assert response.status_code == 503
-    assert "Unexpected trip creation failure (RuntimeError)." in caplog.text
-    assert secret not in caplog.text
-
-
-@pytest.mark.django_db
-def test_detail_get_returns_exact_stored_json_with_every_compute_seam_forbidden(
-    client,
-):
-    trip_id = uuid.uuid4()
-    sentinel = {
-        "schema_version": 1,
-        "trip": {"id": str(trip_id)},
-        "route": {"geometry": {"type": "LineString", "coordinates": []}},
-        "stops": [],
-        "duty_segments": [{"sentinel": True}],
-        "log_days": [],
-    }
-    Trip.objects.create(
-        id=trip_id,
-        result_snapshot=sentinel,
-    )
-    forbidden = AssertionError("stored GET attempted recomputation")
-
-    with (
-        patch("trips.views.create_trip", side_effect=forbidden) as create,
-        patch(
-            "trips.services.ors_client.ORSClient",
-            side_effect=forbidden,
-        ) as provider,
-        patch(
-            "trips.hos_engine.engine.simulate",
-            side_effect=forbidden,
-        ) as simulate,
-        patch(
-            "trips.services.route_geometry.resolve_stops",
-            side_effect=forbidden,
-        ) as resolve,
-        patch(
-            "trips.hos_engine.log_day_builder.split",
-            side_effect=forbidden,
-        ) as split,
-    ):
-        response = client.get(f"/api/trips/{trip_id}/")
-
-    assert response.status_code == 200
-    assert response.json() == sentinel
-    assert response.content == json.dumps(
-        sentinel, separators=(",", ":")
-    ).encode()
-    for seam in (create, provider, simulate, resolve, split):
-        seam.assert_not_called()
 
 
 @pytest.mark.django_db

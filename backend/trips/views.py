@@ -15,6 +15,7 @@ from trips.models import Trip
 from trips.serializers import (
     LocationSearchQuerySerializer,
     ProviderUnavailable,
+    RouteNotResolvable,
     TripCreateSerializer,
     TripDetailSerializer,
 )
@@ -95,6 +96,8 @@ class TripCreateView(APIView):
                 raise serializers.ValidationError(
                     {error.field: [str(error)]}
                 ) from None
+            if error.category == "unroutable":
+                raise RouteNotResolvable() from None
             raise ProviderUnavailable() from None
         except Exception as error:
             logger.error(

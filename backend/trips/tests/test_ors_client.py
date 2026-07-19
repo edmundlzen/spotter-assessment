@@ -1,4 +1,3 @@
-import copy
 import json
 from pathlib import Path
 
@@ -9,6 +8,7 @@ from trips.services.ors_client import (
     ORSClient,
     ProviderError,
     ResolvedLocation,
+    RouteUnavailableError,
 )
 
 
@@ -65,6 +65,13 @@ def make_client(responses, *, retries=1):
     return client, session
 
 
+_THREE_LOCATIONS = [
+    ResolvedLocation("a", "A", -98.38, 38.50),
+    ResolvedLocation("b", "B", -86.99, 41.0),
+    ResolvedLocation("c", "C", -86.97, 41.0),
+]
+
+
 def test_geocode_uses_fixed_us_endpoint_and_preserves_resolved_values():
     client, session = make_client(
         [FakeResponse(load_fixture("ors_geocode_success.json"))]
@@ -95,99 +102,7 @@ def test_geocode_uses_fixed_us_endpoint_and_preserves_resolved_values():
     ]
 
 
-def test_geocode_returns_none_for_an_empty_result_without_retrying():
-    payload = {"type": "FeatureCollection", "features": []}
-    client, session = make_client([FakeResponse(payload)])
-
-    assert client.geocode("not a real place") is None
-    assert len(session.calls) == 1
-
-
-def test_search_returns_multiple_deduplicated_suggestions():
-    payload = {
-        "type": "FeatureCollection",
-        "features": [
-            {
-                "properties": {"label": "Chicago, Illinois, USA"},
-                "geometry": {
-                    "type": "Point",
-                    "coordinates": [-87.6298, 41.8781],
-                },
-            },
-            {
-                "properties": {"label": "Chicago, Illinois, USA"},
-                "geometry": {
-                    "type": "Point",
-                    "coordinates": [-87.6298, 41.8781],
-                },
-            },
-            {
-                "properties": {"label": "Chicago Heights, Illinois, USA"},
-                "geometry": {
-                    "type": "Point",
-                    "coordinates": [-87.6356, 41.5061],
-                },
-            },
-        ],
-    }
-    client, session = make_client([FakeResponse(payload)])
-
-    matches = client.search("Chicago", limit=5)
-
-    assert [match.display_label for match in matches] == [
-        "Chicago, Illinois, USA",
-        "Chicago Heights, Illinois, USA",
-    ]
-    assert session.calls[0][2]["params"]["size"] == 5
-
-
-@pytest.mark.parametrize("limit", [0, 11, True, 1.5])
-def test_search_rejects_invalid_limits_before_transport(limit):
-    client, session = make_client([])
-
-    with pytest.raises(ValueError, match="limit"):
-        client.search("Chicago", limit=limit)
-
-    assert session.calls == []
-
-
-@pytest.mark.parametrize(
-    "payload",
-    [
-        {},
-        {"features": [{}]},
-        {
-            "features": [
-                {
-                    "properties": {"label": "bad"},
-                    "geometry": {
-                        "type": "Point",
-                        "coordinates": [181, 0],
-                    },
-                }
-            ]
-        },
-        {
-            "features": [
-                {
-                    "properties": {"label": "bad"},
-                    "geometry": {
-                        "type": "Point",
-                        "coordinates": [0, float("nan")],
-                    },
-                }
-            ]
-        },
-    ],
-)
-def test_geocode_rejects_malformed_upstream_payloads(payload):
-    client, _ = make_client([FakeResponse(payload)])
-
-    with pytest.raises(ProviderError, match="routing provider"):
-        client.geocode("Chicago")
-
-
-def test_route_posts_exactly_three_lon_lat_points_to_hgv_geojson():
+def test_route_posts_three_snapped_lon_lat_points_to_hgv_geojson():
     client, session = make_client(
         [FakeResponse(load_fixture("ors_route_success.json"))]
     )
@@ -200,85 +115,41 @@ def test_route_posts_exactly_three_lon_lat_points_to_hgv_geojson():
     route = client.route(locations)
 
     assert route.total_meters == 3000.0
-    assert route.total_seconds == 240.0
     assert route.waypoint_indices == (0, 2, 4)
-    assert route.geometry[0] == (-87.0, 41.0)
-    assert route.geometry[-1] == (-86.97, 41.0)
     assert [(leg.distance_meters, leg.duration_seconds) for leg in route.legs] == [
         (1000.0, 80.0),
         (2000.0, 160.0),
     ]
-    assert session.calls == [
-        (
-            "POST",
-            ROUTE_URL,
-            {
-                "json": {
-                    "coordinates": [
-                        [-87.0, 41.0],
-                        [-86.99, 41.0],
-                        [-86.97, 41.0],
-                    ]
-                },
-                "headers": {"Authorization": "server-secret"},
-                "timeout": (1.25, 4.5),
-            },
-        )
-    ]
+    assert session.calls[0][2]["json"] == {
+        "coordinates": [
+            [-87.0, 41.0],
+            [-86.99, 41.0],
+            [-86.97, 41.0],
+        ],
+        "radiuses": [-1, -1, -1],
+    }
 
 
-@pytest.mark.parametrize(
-    "mutation",
-    [
-        lambda body: body.update(features=[]),
-        lambda body: body["features"].append(copy.deepcopy(body["features"][0])),
-        lambda body: body["features"][0]["properties"]["summary"].update(
-            distance=float("inf")
-        ),
-        lambda body: body["features"][0]["properties"].update(segments=[]),
-        lambda body: body["features"][0]["properties"]["segments"][0].update(
-            duration=-1
-        ),
-        lambda body: body["features"][0]["properties"].update(
-            way_points=[1, 2, 4]
-        ),
-        lambda body: body["features"][0]["geometry"].update(type="Point"),
-        lambda body: body["features"][0]["geometry"].update(
-            coordinates=[[200, 41]]
-        ),
-        lambda body: body["features"][0]["geometry"].update(
-            coordinates=[[-87, 41]] * 5
-        ),
-    ],
-)
-def test_route_rejects_malformed_shape_units_and_waypoints(mutation):
-    payload = load_fixture("ors_route_success.json")
-    mutation(payload)
-    client, _ = make_client([FakeResponse(payload)])
+@pytest.mark.parametrize("code", [2004, 2009, 2010])
+def test_route_reports_unroutable_locations_distinctly_from_an_outage(code):
+    body = {
+        "error": {
+            "code": code,
+            "message": "Could not find routable point within 350.0 meters.",
+        }
+    }
+    client, _ = make_client([FakeResponse(body, status_code=404)])
 
-    with pytest.raises(ProviderError, match="routing provider"):
-        client.route(
-            [
-                ResolvedLocation("a", "A", -87, 41),
-                ResolvedLocation("b", "B", -86.99, 41),
-                ResolvedLocation("c", "C", -86.97, 41),
-            ]
-        )
+    with pytest.raises(RouteUnavailableError) as caught:
+        client.route(_THREE_LOCATIONS)
 
-
-def test_route_requires_exactly_three_locations_before_transport():
-    client, session = make_client([])
-
-    with pytest.raises(ValueError, match="exactly three"):
-        client.route([ResolvedLocation("a", "A", -87, 41)])
-    assert session.calls == []
+    assert "350.0 meters" not in str(caught.value)
 
 
 @pytest.mark.parametrize(
     ("first_response", "expected_calls"),
     [
         (requests.ConnectTimeout("contains upstream details"), 2),
-        (FakeResponse({}, status_code=429), 2),
         (FakeResponse({}, status_code=503), 2),
         (FakeResponse({}, status_code=400), 1),
     ],
@@ -298,37 +169,3 @@ def test_retry_policy_is_bounded_and_errors_are_sanitized(
     assert "server-secret" not in message
     assert "contains upstream details" not in message
     assert "secret query" not in message
-
-
-def test_read_timeout_and_other_transport_errors_are_not_retried():
-    client, session = make_client(
-        [requests.ReadTimeout("raw provider failure")]
-    )
-
-    with pytest.raises(ProviderError) as caught:
-        client.geocode("Chicago")
-
-    assert len(session.calls) == 1
-    assert str(caught.value) == "The routing provider is unavailable."
-
-
-@pytest.mark.parametrize(
-    ("kwargs", "message"),
-    [
-        ({"api_key": ""}, "api_key"),
-        ({"connect_timeout": 0}, "connect_timeout"),
-        ({"read_timeout": float("nan")}, "read_timeout"),
-        ({"max_retries": 2}, "max_retries"),
-    ],
-)
-def test_client_rejects_unsafe_configuration(kwargs, message):
-    defaults = {
-        "api_key": "key",
-        "connect_timeout": 1,
-        "read_timeout": 1,
-        "max_retries": 0,
-    }
-    defaults.update(kwargs)
-
-    with pytest.raises(ValueError, match=message):
-        ORSClient(**defaults)

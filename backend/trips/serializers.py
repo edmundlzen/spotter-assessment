@@ -20,6 +20,23 @@ class ProviderUnavailable(APIException):
     default_code = "provider_unavailable"
 
 
+class RouteNotResolvable(APIException):
+    """Secret-safe 400 when the entered locations cannot be routed.
+
+    Distinct from a provider outage (503): the service is up, but no drivable
+    route exists for the given locations, so the user should refine them.
+    """
+
+    status_code = 400
+    default_detail = {
+        "detail": (
+            "We couldn't find a drivable route between these locations. "
+            "Try more specific cities or street addresses."
+        )
+    }
+    default_code = "route_not_resolvable"
+
+
 class FiniteCycleHoursField(serializers.FloatField):
     """Accept a real finite number inside the locked 70-hour cycle range."""
 

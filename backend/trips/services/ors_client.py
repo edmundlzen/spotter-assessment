@@ -15,9 +15,22 @@ _ROUTE_URL = (
 )
 _RETRYABLE_STATUSES = {429}
 
+_ROUTE_INPUT_ERROR_CODES = {2004, 2009, 2010}
+
+_ROUTE_SNAP_RADIUSES = [-1, -1, -1]
+
 
 class ProviderError(RuntimeError):
     """A secret-safe provider failure suitable for application translation."""
+
+
+class RouteUnavailableError(ProviderError):
+    """The entered locations themselves cannot be routed.
+
+    Distinct from a provider outage: the coordinates are the problem
+    (unroutable point, disconnected road networks, or a distance limit), so the
+    caller should ask the user to refine the locations rather than retry.
+    """
 
 
 @dataclass(frozen=True)
@@ -146,7 +159,10 @@ class ORSClient:
         response = self._request(
             "post",
             _ROUTE_URL,
-            json={"coordinates": coordinates},
+            json={
+                "coordinates": coordinates,
+                "radiuses": _ROUTE_SNAP_RADIUSES,
+            },
         )
         return _parse_route(self._json(response))
 
@@ -172,7 +188,7 @@ class ORSClient:
             if retryable and attempt + 1 < attempts:
                 continue
             if status < 200 or status >= 300:
-                raise _unavailable()
+                raise _http_failure(response)
             return response
         raise _unavailable()
 
@@ -317,6 +333,29 @@ def _positive_finite(value: Any, name: str) -> float:
     if result <= 0:
         raise ValueError(f"{name} must be positive")
     return result
+
+
+def _http_failure(response: Any) -> ProviderError:
+    """Classify a non-2xx provider response as a routing-input error or outage.
+
+    Reads the ORS error code from the body when present: a recognized
+    routing-input code becomes a RouteUnavailableError (the locations can't be
+    routed); anything else stays a generic, secret-safe unavailability.
+    """
+    try:
+        body = response.json()
+    except (ValueError, TypeError):
+        body = None
+    code = None
+    if isinstance(body, dict):
+        error = body.get("error")
+        if isinstance(error, dict):
+            code = error.get("code")
+    if code in _ROUTE_INPUT_ERROR_CODES:
+        return RouteUnavailableError(
+            "No drivable route exists for the entered locations."
+        )
+    return _unavailable()
 
 
 def _invalid_payload() -> ProviderError:
