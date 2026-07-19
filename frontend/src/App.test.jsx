@@ -483,4 +483,79 @@ describe("daily ELD log", () => {
     expect(container.querySelectorAll(".paper-log")).toHaveLength(2)
     expect(screen.getByRole("tab", { name: /Day 2/ })).toBeTruthy()
   })
+
+  it("renders every chronological event without repeating matching stop segments", () => {
+    const trip = snapshot()
+    trip.stops = [
+      {
+        ...trip.stops[0],
+        kind: "pickup",
+        start: "2026-07-18T09:00:00",
+        end: "2026-07-18T10:00:00",
+      },
+      {
+        ...trip.stops[0],
+        kind: "fuel",
+        cumulative_miles: 140,
+        start: "2026-07-18T12:00:00",
+        end: "2026-07-18T12:30:00",
+        note: "Fuel stop",
+      },
+      {
+        ...trip.stops[1],
+        kind: "break",
+        cumulative_miles: 175,
+        start: "2026-07-18T15:00:00",
+        end: "2026-07-18T15:30:00",
+        status: "off_duty",
+        note: "30-minute break",
+      },
+      {
+        ...trip.stops[1],
+        kind: "dropoff",
+        cumulative_miles: 200,
+        start: "2026-07-18T18:00:00",
+        end: "2026-07-18T19:00:00",
+      },
+    ]
+    trip.log_days[0].segments = [
+      ...trip.log_days[0].segments,
+      {
+        status: "on_duty_not_driving",
+        start: "2026-07-18T12:00:00",
+        end: "2026-07-18T12:30:00",
+        duration_minutes: 30,
+        note: "Fuel stop",
+      },
+      {
+        status: "driving",
+        start: "2026-07-18T13:00:00",
+        end: "2026-07-18T15:00:00",
+        duration_minutes: 120,
+        note: "Route driving",
+      },
+    ]
+
+    const { container } = render(<EldLogSheets snapshot={trip} />)
+    const remarks = [
+      ...container.querySelectorAll(".paper-log__remark-lines p"),
+    ].map((remark) => remark.textContent)
+
+    expect(remarks).toEqual([
+      "08:00 Route driving",
+      "09:00 Pickup — mile 100",
+      "10:00 Pickup and drop-off",
+      "12:00 Fuel stop — mile 140",
+      "13:00 Route driving",
+      "15:00 30-minute break — mile 175",
+      "18:00 Drop-off — mile 200",
+    ])
+    expect(remarks.filter((remark) => remark.includes("Fuel stop"))).toHaveLength(
+      1,
+    )
+    expect(remarks.filter((remark) => remark.includes("Route driving"))).toHaveLength(
+      2,
+    )
+    expect(remarks.at(-1)).toContain("Drop-off")
+  })
 })

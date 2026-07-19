@@ -43,28 +43,36 @@ function formatLogTotal(minutes) {
   return `${hours}:${String(mins).padStart(2, "0")}`
 }
 
-function shorten(value, length) {
-  if (!value || value.length <= length) return value
-  return `${value.slice(0, length - 1).trimEnd()}…`
-}
-
 function dateParts(date) {
   const [year, month, day] = date.split("-")
   return { day, month, year: year.slice(-2) }
 }
 
 function remarksForDay(day, snapshot) {
-  const stopRemarks = stopsForDate(snapshot.stops, day.date).map(
-    (stop) =>
-      `${stop.start.slice(11, 16)} ${stopLabel(stop.kind)} — mile ${formatMiles(stop.cumulative_miles, 0)}`,
+  const stops = stopsForDate(snapshot.stops, day.date)
+  const stopEventKeys = new Set(
+    stops.map((stop) => `${stop.start}|${stop.status}`),
   )
+  const stopRemarks = stops.map((stop, index) => ({
+    key: `stop-${stop.start}-${stop.kind}-${index}`,
+    start: stop.start,
+    text: `${stop.start.slice(11, 16)} ${stopLabel(stop.kind)} — mile ${formatMiles(stop.cumulative_miles, 0)}`,
+  }))
   const segmentRemarks = day.segments
     .filter((segment) => segment.note && segment.note !== "outside trip")
-    .map((segment) => `${segment.start.slice(11, 16)} ${segment.note}`)
+    .filter(
+      (segment) =>
+        !stopEventKeys.has(`${segment.start}|${segment.status}`),
+    )
+    .map((segment, index) => ({
+      key: `segment-${segment.start}-${segment.end}-${segment.status}-${index}`,
+      start: segment.start,
+      text: `${segment.start.slice(11, 16)} ${segment.note}`,
+    }))
 
-  return [...new Set([...stopRemarks, ...segmentRemarks])]
-    .slice(0, 3)
-    .map((remark) => shorten(remark, 70))
+  return [...stopRemarks, ...segmentRemarks].sort((left, right) =>
+    left.start.localeCompare(right.start),
+  )
 }
 
 function DutyTrace({ day }) {
@@ -233,7 +241,7 @@ function PaperLogForm({ day, snapshot }) {
         <h5>Remarks</h5>
         <div className="paper-log__remark-lines">
           {remarks.length ? (
-            remarks.map((remark) => <p key={remark}>{remark}</p>)
+            remarks.map((remark) => <p key={remark.key}>{remark.text}</p>)
           ) : (
             <p>No scheduled stops or additional remarks.</p>
           )}
